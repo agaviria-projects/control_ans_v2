@@ -1,18 +1,3 @@
-"""
-------------------------------------------------------------
-CONTROL DE ALMACÉN – CRUCE FÉNIX (EPM) vs ELITE (Planilla Consumos)
-Versión 3.2 - 2025
-Autor: Héctor + IA
-------------------------------------------------------------
-Descripción:
-  Cruza los registros de EPM (archivo FÉNIX) con la planilla
-  interna de ELITE (archivo .xlsm), comparando PEDIDOS, CÓDIGOS
-  y opcionalmente MANO DE OBRA. Calcula diferencias y genera:
-    - Hoja CONTROL_ALMACEN con detalle fila a fila
-    - Hoja RESUMEN con totales por estado
-------------------------------------------------------------
-"""
-
 # ============================================================
 # 1. LIBRERÍAS
 # ============================================================
@@ -49,14 +34,21 @@ columnas_fenix = [
 
 # --- FÉNIX ---
 try:
-    df_fenix = pd.read_excel(ruta_fenix, dtype=str)
+    if ruta_fenix.suffix.lower() == ".txt":
+        # Leer como archivo delimitado por tabulaciones o pipes según corresponda
+        df_fenix = pd.read_csv(ruta_fenix, sep=None, engine="python", dtype=str)
+    else:
+        df_fenix = pd.read_excel(ruta_fenix, dtype=str)
+
     df_fenix.columns = df_fenix.columns.str.lower().str.strip()
     df_fenix = df_fenix[[c for c in columnas_fenix if c in df_fenix.columns]]
     df_fenix["cantidad_fenix"] = pd.to_numeric(df_fenix["cantidad"], errors="coerce").fillna(0)
     if "mano_obra" not in df_fenix.columns:
         df_fenix["mano_obra"] = None
+
 except Exception as e:
     raise SystemExit(f"❌ Error al leer FÉNIX: {e}")
+
 
 # --- ELITE ---
 try:
@@ -331,6 +323,74 @@ if "estado" in df_merge.columns:
 
 columnas_finales = columnas_fenix + ["cantidad_elite", "diferencia", "status"]
 df_merge = df_merge[[c for c in columnas_finales if c in df_merge.columns]]
+# ============================================================
+# 8.1 AGREGAR COLUMNA TÉCNICO (BUSCARV DESDE PLANILLA CONSUMOS)
+# ============================================================
+try:
+    # Leer la planilla completa sin modificar su estructura
+    df_tecnicos = pd.read_excel(ruta_elite, sheet_name=None, dtype=str, header=None)
+    hoja_correcta, fila_header = None, None
+
+    # Buscar hoja donde aparezca "técnico" o "tecnico" en alguna fila
+    for hoja, df_temp in df_tecnicos.items():
+        for i, fila in df_temp.iterrows():
+            fila_texto = " ".join(str(x).lower() for x in fila.values if pd.notna(x))
+            if "tecnico" in fila_texto or "técnico" in fila_texto:
+                hoja_correcta, fila_header = hoja, i
+                break
+        if hoja_correcta:
+            break
+
+    if hoja_correcta is None:
+        raise Exception("No se encontró ninguna hoja con encabezado 'TECNICO'.")
+
+    # Leer la hoja correcta desde la fila del encabezado detectado
+    df_tecnicos = pd.read_excel(
+        ruta_elite,
+        sheet_name=hoja_correcta,
+        dtype=str,
+        skiprows=fila_header
+    )
+
+    # Normalizar encabezados
+    df_tecnicos.columns = (
+        df_tecnicos.columns.map(str)
+        .str.lower()
+        .str.strip()
+        .str.replace(r"unnamed.*", "", regex=True)
+    )
+
+    # Asegurar nombres consistentes
+    posibles_cols = ["#pedido", "pedido", "codigu", "codigo", "tecnico", "técnico"]
+    df_tecnicos = df_tecnicos[[c for c in df_tecnicos.columns if any(p in c for p in posibles_cols)]]
+
+    # Renombrar columnas estándar
+    df_tecnicos.rename(columns={
+        "#pedido": "pedido",
+        "codigu": "codigo",
+        "codigo": "codigo",
+        "tecnico": "tecnico",
+        "técnico": "tecnico",
+    }, inplace=True)
+
+    # Solo columnas necesarias
+    df_tecnicos = df_tecnicos[["pedido", "tecnico"]].drop_duplicates(subset=["pedido"])
+
+    # 🔹 Merge tipo BUSCARV
+    df_merge = df_merge.merge(df_tecnicos, on="pedido", how="left")
+
+    # Reubicar columna 'tecnico' justo después de 'status'
+    if "tecnico" in df_merge.columns and "status" in df_merge.columns:
+        cols = list(df_merge.columns)
+        idx_status = cols.index("status")
+        cols.insert(idx_status + 1, cols.pop(cols.index("tecnico")))
+        df_merge = df_merge[cols]
+
+    print("👷 Columna 'TÉCNICO' agregada correctamente desde Planilla Consumos.xlsx.")
+
+except Exception as e:
+    print(f"⚠️ No se pudo agregar la columna 'TÉCNICO': {e}")
+
 
 # Para hoja NO_COINCIDEN
 columnas_nocruce = ["pedido", "codigo", "cantidad", "cantidad_elite", "origen"]
@@ -528,3 +588,4 @@ print("✅ CRUCE FINALIZADO CON ÉXITO (v3.7 con colores de encabezado).")
 print(f"📁 Archivo generado: {ruta_salida}")
 print("------------------------------------------------------------")
 
+	
