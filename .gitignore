@@ -1,0 +1,33 @@
+# ============================
+# ARCHIVO .gitignore - Control_ANS
+# ============================
+
+# Entornos virtuales
+venv/
+.env/
+.env.bak/
+.venv/
+
+# Archivos temporales de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+
+# Configuración local
+*.ini
+*.cfg
+*.bak
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Archivos y carpetas de compilación
+build/
+dist/
+*.egg-info/
+
+# C
