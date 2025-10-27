@@ -13,9 +13,22 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 # 2. CONFIGURACIÓN DE RUTAS
 # ============================================================
 base = Path(__file__).resolve().parent
-ruta_fenix = base / "data_raw" / "Digitacion Fenix.xlsx"
-ruta_elite = base / "data_raw" / "Planilla consumos.xlsx"
+
+# Detecta automáticamente si existe el archivo TXT o XLSX
+ruta_fenix_txt = base / "data_raw" / "Digitacion Fenix.txt"
+ruta_fenix_xlsx = base / "data_raw" / "Digitacion Fenix.xlsx"
+
+# Usa el archivo que realmente exista
+if ruta_fenix_txt.exists():
+    ruta_fenix = ruta_fenix_txt
+    print("📁 Detectado archivo Fénix: Digitacion Fenix.txt")
+else:
+    ruta_fenix = ruta_fenix_xlsx
+    print("📁 Detectado archivo Fénix: Digitacion Fenix.xlsx")
+
+ruta_elite = base / "data_raw" / "Planilla Consumos.xlsx"
 ruta_salida = base / "data_clean" / "CONTROL_ALMACEN.xlsx"
+
 
 print("------------------------------------------------------------")
 print("🚀 INICIANDO CRUCE FÉNIX vs ELITE (v3.2)...")
@@ -35,11 +48,17 @@ columnas_fenix = [
 # --- FÉNIX ---
 try:
     if ruta_fenix.suffix.lower() == ".txt":
-        # Leer como archivo delimitado por tabulaciones o pipes según corresponda
-        df_fenix = pd.read_csv(ruta_fenix, sep=None, engine="python", dtype=str)
+        try:
+            # Intento 1: lectura estándar UTF-8
+            df_fenix = pd.read_csv(ruta_fenix, sep=None, engine="python", dtype=str, encoding="utf-8")
+        except UnicodeDecodeError:
+            # Intento 2: lectura alternativa en Latin-1 (Windows)
+            df_fenix = pd.read_csv(ruta_fenix, sep=None, engine="python", dtype=str, encoding="latin-1")
+            print("⚙️ Archivo leído correctamente con codificación Latin-1.")
     else:
         df_fenix = pd.read_excel(ruta_fenix, dtype=str)
 
+    # Normalización de columnas
     df_fenix.columns = df_fenix.columns.str.lower().str.strip()
     df_fenix = df_fenix[[c for c in columnas_fenix if c in df_fenix.columns]]
     df_fenix["cantidad_fenix"] = pd.to_numeric(df_fenix["cantidad"], errors="coerce").fillna(0)
@@ -48,7 +67,6 @@ try:
 
 except Exception as e:
     raise SystemExit(f"❌ Error al leer FÉNIX: {e}")
-
 
 # --- ELITE ---
 try:
@@ -305,8 +323,6 @@ if not df_nocruce.empty:
         ]
         registros_ajustados += 1
     print(f"🧩 Registros eliminados de NO_COINCIDEN por complementarios: {registros_ajustados}")
-
-
 # ============================================================
 # 8. ORGANIZAR COLUMNAS FINALES
 # ============================================================
@@ -317,21 +333,20 @@ columnas_fenix = [
     "item_cont", "codigo", "cantidad", "vlr_cliente", "valor_costo"
 ]
 
-# Cambiamos el nombre de la columna "estado" a "status" antes del orden
+# Cambiar el nombre de la columna "estado" a "status" antes del orden
 if "estado" in df_merge.columns:
     df_merge.rename(columns={"estado": "status"}, inplace=True)
 
-columnas_finales = columnas_fenix + ["cantidad_elite", "diferencia", "status"]
-df_merge = df_merge[[c for c in columnas_finales if c in df_merge.columns]]
+# De momento NO filtramos columnas aquí — lo haremos al final.
+# Esto evita que se pierda la columna 'tecnico' tras el merge.
+
 # ============================================================
 # 8.1 AGREGAR COLUMNA TÉCNICO (BUSCARV DESDE PLANILLA CONSUMOS)
 # ============================================================
 try:
-    # Leer la planilla completa sin modificar su estructura
     df_tecnicos = pd.read_excel(ruta_elite, sheet_name=None, dtype=str, header=None)
     hoja_correcta, fila_header = None, None
 
-    # Buscar hoja donde aparezca "técnico" o "tecnico" en alguna fila
     for hoja, df_temp in df_tecnicos.items():
         for i, fila in df_temp.iterrows():
             fila_texto = " ".join(str(x).lower() for x in fila.values if pd.notna(x))
@@ -344,7 +359,6 @@ try:
     if hoja_correcta is None:
         raise Exception("No se encontró ninguna hoja con encabezado 'TECNICO'.")
 
-    # Leer la hoja correcta desde la fila del encabezado detectado
     df_tecnicos = pd.read_excel(
         ruta_elite,
         sheet_name=hoja_correcta,
@@ -352,7 +366,6 @@ try:
         skiprows=fila_header
     )
 
-    # Normalizar encabezados
     df_tecnicos.columns = (
         df_tecnicos.columns.map(str)
         .str.lower()
@@ -360,11 +373,9 @@ try:
         .str.replace(r"unnamed.*", "", regex=True)
     )
 
-    # Asegurar nombres consistentes
     posibles_cols = ["#pedido", "pedido", "codigu", "codigo", "tecnico", "técnico"]
     df_tecnicos = df_tecnicos[[c for c in df_tecnicos.columns if any(p in c for p in posibles_cols)]]
 
-    # Renombrar columnas estándar
     df_tecnicos.rename(columns={
         "#pedido": "pedido",
         "codigu": "codigo",
@@ -373,13 +384,16 @@ try:
         "técnico": "tecnico",
     }, inplace=True)
 
-    # Solo columnas necesarias
     df_tecnicos = df_tecnicos[["pedido", "tecnico"]].drop_duplicates(subset=["pedido"])
 
     # 🔹 Merge tipo BUSCARV
     df_merge = df_merge.merge(df_tecnicos, on="pedido", how="left")
 
-    # Reubicar columna 'tecnico' justo después de 'status'
+    # 🔹 Reemplazar vacíos en la columna técnico por "SIN DATOS"
+    if "tecnico" in df_merge.columns:
+        df_merge["tecnico"] = df_merge["tecnico"].fillna("SIN DATOS").replace("", "SIN DATOS")
+
+    # 🔹 Reubicar columna 'tecnico' justo después de 'status'
     if "tecnico" in df_merge.columns and "status" in df_merge.columns:
         cols = list(df_merge.columns)
         idx_status = cols.index("status")
@@ -391,6 +405,11 @@ try:
 except Exception as e:
     print(f"⚠️ No se pudo agregar la columna 'TÉCNICO': {e}")
 
+# ============================================================
+# 8.2 ORDEN FINAL DE COLUMNAS (ya con TÉCNICO incluido)
+# ============================================================
+columnas_finales = columnas_fenix + ["cantidad_elite", "diferencia", "status", "tecnico"]
+df_merge = df_merge[[c for c in columnas_finales if c in df_merge.columns]]
 
 # Para hoja NO_COINCIDEN
 columnas_nocruce = ["pedido", "codigo", "cantidad", "cantidad_elite", "origen"]
@@ -512,9 +531,10 @@ def formato_hoja(ws):
     # 🎨 Paleta de colores
     colores = {
         "default": "004C99",      # azul (FENIX)
-        "elite": "000000",        # morado (ELITE)
-        "diferencia": "000000",   # naranja (comparativo)
-        "status": "000000",       # verde (resultado)
+        "elite": "000000",        # negro (ELITE)
+        "diferencia": "000000",   # negro (comparativo)
+        "status": "000000",       # negro (resultado)
+        "tecnico": "000000",      # negro (nueva columna técnico)
     }
 
     # 🔹 Colorear encabezados según tipo
@@ -528,6 +548,8 @@ def formato_hoja(ws):
             color = colores["diferencia"]
         elif header == "status":  # evitar confusión con fecha_estado
             color = colores["status"]
+        elif "tecnico" in header:
+            color = colores["tecnico"]    
 
         cell.fill = PatternFill("solid", start_color=color)
         cell.font = font_encabezado

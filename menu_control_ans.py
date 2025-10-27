@@ -47,11 +47,14 @@ def restaurar_boton(boton, color_original):
 # FUNCIÓN PRINCIPAL DE EJECUCIÓN
 # ------------------------------------------------------------
 def ejecutar_comando(nombre, comando, boton=None):
-    """Ejecuta un script externo mostrando logs y progreso."""
+    """Ejecuta un script externo mostrando logs y progreso animado."""
     def tarea():
         log_text.insert(tk.END, f"\n🚀 Iniciando {nombre}...\n", "info")
         log_text.see(tk.END)
-        barra_progreso.start()
+
+        # Reiniciar barra
+        barra_progreso["value"] = 0
+        ventana.update_idletasks()
 
         hora = datetime.now().strftime("%I:%M %p")
         pie_estado.config(text=f"🔄 Procesando {nombre}... | {hora}", fg="#1A5276")
@@ -60,38 +63,52 @@ def ejecutar_comando(nombre, comando, boton=None):
         color_original = resaltar_boton(boton) if boton else None
 
         try:
+            # Activar animación continua
+            barra_progreso.config(mode="indeterminate")
+            barra_progreso.start(20)  # velocidad del desplazamiento
+
+            # Lanzar proceso
             proceso = subprocess.Popen(
                 comando,
                 shell=True,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
+                stderr=subprocess.STDOUT,
                 bufsize=1,
                 universal_newlines=True,
                 cwd=os.path.dirname(os.path.abspath(__file__)),
                 encoding="utf-8"
             )
 
-            for linea in proceso.stdout:
+            for linea in iter(proceso.stdout.readline, ''):
+                if not linea:
+                    break
                 log_text.insert(tk.END, linea)
                 log_text.see(tk.END)
+                ventana.update_idletasks()
 
-            error_salida = proceso.stderr.read()
             proceso.wait()
 
+            # Resultado final
+            barra_progreso.stop()
+            barra_progreso.config(mode="determinate")
+
             if proceso.returncode == 0:
+                barra_progreso["value"] = 100
+                ventana.update_idletasks()
                 log_text.insert(tk.END, f"\n✅ {nombre} completado con éxito.\n", "success")
                 pie_estado.config(text=f"✅ {nombre} completado con éxito. | {hora}", fg="#27AE60")
             else:
-                log_text.insert(tk.END, f"\n❌ Error al ejecutar {nombre}:\n{error_salida}\n", "error")
+                log_text.insert(tk.END, f"\n❌ Error en {nombre} (código {proceso.returncode}).\n", "error")
                 pie_estado.config(text=f"⚠️ Error en {nombre}. Revisa el log.", fg="#C0392B")
 
         except Exception as e:
+            barra_progreso.stop()
+            barra_progreso.config(mode="determinate", value=100)
             log_text.insert(tk.END, f"\n⚠️ Error inesperado: {e}\n", "error")
             pie_estado.config(text=f"⚠️ Error en {nombre}. Revisa el log.", fg="#C0392B")
 
         finally:
-            barra_progreso.stop()
+            # Restaurar botón y pie
             if boton and color_original:
                 restaurar_boton(boton, color_original)
             log_text.insert(tk.END, "-" * 60 + "\n", "separador")
@@ -99,7 +116,11 @@ def ejecutar_comando(nombre, comando, boton=None):
             pie_estado.config(text="⚙️ Esperando acción del usuario...", fg="#1B263B")
             ventana.update_idletasks()
 
-    threading.Thread(target=tarea).start()
+            # Reinicio suave de barra
+            ventana.after(1500, lambda: barra_progreso.config(value=0))
+
+    threading.Thread(target=tarea, daemon=True).start()
+
 
 # ------------------------------------------------------------
 # COMANDOS DE BOTONES
@@ -208,7 +229,7 @@ btn_validar.grid(row=0, column=1, padx=10)
 # ------------------------------------------------------------
 # BARRA DE PROGRESO
 # ------------------------------------------------------------
-barra_progreso = ttk.Progressbar(ventana, orient="horizontal", mode="indeterminate", length=450)
+barra_progreso = ttk.Progressbar(ventana, orient="horizontal", mode="determinate", length=450, maximum=100)
 barra_progreso.pack(pady=(5, 5))
 
 # ------------------------------------------------------------
