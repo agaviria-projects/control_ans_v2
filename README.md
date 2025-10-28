@@ -1,3 +1,75 @@
+# ⚙️ Control ANS – Sistema de Seguimiento Técnico Empresarial (v4.5)
+
+**Desarrollado por:** Héctor Alejandro Gaviria  
+**Última versión:** v4.5 – _Unificación de subida de archivos (PDF + imágenes) y footer visual_  
+**Repositorio:** [GitHub – agaviria-projects / Control_ANS](https://github.com/agaviria-projects/control_ans)
+
+---
+
+## 🚀 Descripción General
+
+**Control ANS** es una plataforma integral para **Elite Ingenieros S.A.S.** que permite el control técnico, cruce de materiales y seguimiento de cumplimiento contractual de pedidos registrados en el sistema **FÉNIX (EPM)**.
+
+El sistema combina:
+- **Python (automatización y limpieza)**
+- **Excel (reportes y salidas)**
+- **Flask (formulario técnico web)**
+- **Power BI (visualización analítica)**
+
+---
+
+## 🧩 Estructura del Proyecto
+
+Control_ANS/
+│
+├── data_raw/ # Archivos originales (TXT y XLSX)
+│ ├── Digitacion Fenix.txt
+│ ├── Planilla Consumos.xlsx
+│
+├── data_clean/ # Archivos procesados por Python
+│ ├── FENIX_CLEAN.xlsx
+│ ├── FENIX_ANS.xlsx
+│ └── CONTROL_ALMACEN.xlsx
+│
+├── dashboard/ # Archivos Power BI o reportes visuales
+│
+├── formularios_tecnicos/ # Módulo web Flask
+│ ├── app.py # Backend Flask
+│ ├── templates/form.html # Interfaz web
+│ ├── static/uploads/ # Evidencias (PDF / imágenes)
+│
+├── scripts principales
+│ ├── calculos_ans.py # Cálculos ANS (días hábiles y estado)
+│ ├── validar_export_almacen.py # Cruce FENIX vs Planilla Elite
+│ ├── limpieza_fenix.py # Limpieza de exportes TXT/XLSX Fénix
+│ ├── mano_obra_vs_materiales.py # Validación materiales vs mano de obra
+│ └── diagnostico_control.py # Revisión de consistencias y vacíos
+│
+├── iniciar_panel.bat # Script de inicio del sistema
+├── requirements.txt # Dependencias del proyecto
+├── .gitignore # Exclusiones del control de versiones
+└── README.md # Este archivo (documentación completa)
+
+
+---
+
+## 🧠 Componentes Principales
+
+### 1️⃣ **Formulario Técnico ANS (Flask Web App)**
+
+- **Archivo:** `formularios_tecnicos/app.py`
+- **Plantilla:** `templates/form.html`
+- **Objetivo:** Registrar pedidos técnicos y adjuntar evidencias (PDF o imágenes).
+
+**Características:**
+- Busca pedido en FENIX (`FENIX_ANS.xlsx`).
+- Valida duplicados (pedido ya registrado).
+- Guarda registros en `registros_formulario.xlsx`.
+- Permite subir múltiples evidencias (PDF e imágenes).
+- Compatible con PC y móviles (📷 Cámara / 🖼️ Galería).
+- Usa `flash()` para mensajes en tiempo real.
+- Genera nombres de archivo únicos con timestamp:
+
 
 **Ejemplo de registro guardado:**
 
@@ -102,6 +174,7 @@ python -m venv venv
 source venv/Scripts/activate   # Windows
 pip install -r requirements.txt
 
+---
 Requerimientos:
 Flask
 pandas
@@ -109,20 +182,18 @@ numpy
 openpyxl
 gunicorn
 
-🧰 Buenas Prácticas y Tips
+Buenas Prácticas y Tips
 
 Ejecutar con todos los archivos Excel cerrados.
-
 Evitar subir archivos temporales (~$*.xlsx) → ya incluidos en .gitignore.
-
 Los nombres de archivo incluyen timestamp para evitar duplicados.
-
 Al modificar lógica, crear un commit versionado:
 
 git add .
 git commit -m "vX.X Descripción del cambio"
 git push origin main
 
+🧾 Historial de Versiones (Changelog)
 | Versión  | Fecha    | Cambios principales                                          |
 | -------- | -------- | ------------------------------------------------------------ |
 | **v3.2** | Sep 2025 | Cruce FENIX vs Elite, lectura flexible TXT/XLSX.             |
@@ -130,4 +201,3 @@ git push origin main
 | **v4.0** | Oct 2025 | Reconstrucción de hoja NO_COINCIDEN con cantidades reales.   |
 | **v4.4** | Oct 2025 | Limpieza final, mejora de duplicados y .gitignore.           |
 | **v4.5** | Oct 2025 | Unificación de carga PDF+imágenes y footer móvil responsive. |
-
