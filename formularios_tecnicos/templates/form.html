@@ -113,7 +113,7 @@
                     </select>
                 </div>
 
-                <div id="bloqueArchivos">
+                                <div id="bloqueArchivos">
                     <div class="mb-3">
                         <label class="form-label">Subir evidencias (PDF o imágenes)</label>
                         <input type="file" 
@@ -126,16 +126,25 @@
                             📷 Puede tomar fotos con la cámara o elegir archivos PDF / imágenes desde la galería.
                         </small>
                     </div>
+                </div>
+
+                <!-- ✅ BOTONES DE ACCIÓN -->
+                <div class="d-flex justify-content-between flex-wrap gap-2 mt-3">
+                    <button type="submit" class="btn btn-success flex-fill">
+                        <i class="bi bi-check-circle"></i> Enviar Registro
+                    </button>
+
+                    <button type="button" id="btnLimpiar" class="btn btn-secondary flex-fill">
+                        <i class="bi bi-x-circle"></i> Limpiar
+                    </button>
+                </div>
             </form>
         </div>
-
+        <!-- ✅ FOOTER / PIE DE PÁGINA -->
         <div class="card-footer footer">
             <p class="mb-0">© 2025 ELITE Ingenieros S.A.S.</p>
             <p class="mb-0">Pasión por lo que hacemos.</p>
         </div>
-    </div>
-</div>
-
 <script>
     // Buscar pedido en FENIX
     $("#btnBuscar").on("click", function() {
