@@ -30,4 +30,6 @@ build/
 dist/
 *.egg-info/
 
-# C
+# Ignorar archivos temporales de Excel
+~$*
+*.tmp

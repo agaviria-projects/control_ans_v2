@@ -414,6 +414,100 @@ df_merge = df_merge[[c for c in columnas_finales if c in df_merge.columns]]
 # Para hoja NO_COINCIDEN
 columnas_nocruce = ["pedido", "codigo", "cantidad", "cantidad_elite", "origen"]
 df_nocruce = df_nocruce[[c for c in columnas_nocruce if c in df_nocruce.columns]]
+# ============================================================
+# 8.3 RECONSTRUCCIÓN FINAL DE HOJA NO_COINCIDEN (v4.0 con cantidad real)
+# ============================================================
+try:
+    # --- Leer planilla para obtener pedido, código, cantidad y técnico ---
+    df_planilla = pd.read_excel(ruta_elite, sheet_name=None, dtype=str, header=None)
+    hoja_correcta, fila_header = None, None
+
+    for hoja, df_temp in df_planilla.items():
+        for i, fila in df_temp.iterrows():
+            texto = " ".join(str(x).lower() for x in fila.values if pd.notna(x))
+            if "tecnico" in texto or "técnico" in texto:
+                hoja_correcta, fila_header = hoja, i
+                break
+        if hoja_correcta:
+            break
+
+    if not hoja_correcta:
+        raise Exception("No se encontró hoja con columna técnico.")
+
+    # Leer desde encabezado detectado
+    df_planilla = pd.read_excel(
+        ruta_elite,
+        sheet_name=hoja_correcta,
+        dtype=str,
+        skiprows=fila_header
+    )
+
+    # Normalizar encabezados
+    df_planilla.columns = (
+        df_planilla.columns.map(str)
+        .str.lower()
+        .str.strip()
+        .str.replace(r"unnamed.*", "", regex=True)
+    )
+
+    # Renombrar columnas clave
+    df_planilla.rename(columns={
+        "#pedido": "pedido",
+        "codigu": "codigo",
+        "cantidad": "cantidad_elite",
+        "técnico": "tecnico"
+    }, inplace=True)
+
+    # Filtrar columnas relevantes
+    columnas_necesarias = ["pedido", "codigo", "cantidad_elite", "tecnico"]
+    df_planilla = df_planilla[[c for c in df_planilla.columns if c in columnas_necesarias]].copy()
+
+    # Limpieza básica
+    df_planilla["pedido"] = df_planilla["pedido"].astype(str).str.strip()
+    df_planilla["codigo"] = df_planilla["codigo"].astype(str).str.strip()
+    df_planilla["tecnico"] = df_planilla["tecnico"].astype(str).str.strip()
+    df_planilla["cantidad_elite"] = (
+    df_planilla["cantidad_elite"]
+    .astype(str)
+    .str.replace(",", ".", regex=False)
+    .apply(lambda x: float(x) if x.replace(".", "", 1).isdigit() else 0)
+)
+
+    df_planilla.dropna(subset=["pedido", "codigo"], inplace=True)
+    df_planilla.drop_duplicates(subset=["pedido", "codigo"], keep="first", inplace=True)
+
+    # --- Filtrar registros Solo en ELITE ---
+    df_nc_elite = df_nocruce[df_nocruce["origen"].str.contains("Solo en ELITE", case=False, na=False)].copy()
+    df_nc_otros = df_nocruce[~df_nocruce["origen"].str.contains("Solo en ELITE", case=False, na=False)].copy()
+
+    if not df_nc_elite.empty:
+        pedidos_elite = df_nc_elite["pedido"].unique().tolist()
+        df_codigos_planilla = df_planilla[df_planilla["pedido"].isin(pedidos_elite)].copy()
+
+        # Crear base limpia con estructura correcta
+        df_nueva_elite = pd.DataFrame({
+            "pedido": df_codigos_planilla["pedido"],
+            "codigo": df_codigos_planilla["codigo"],
+            "cantidad": 0,
+            "cantidad_elite": df_codigos_planilla["cantidad_elite"],
+            "origen": "Solo en ELITE",
+            "tecnico": df_codigos_planilla["tecnico"]
+        })
+
+        # Evitar duplicados reales
+        df_nueva_elite.drop_duplicates(subset=["pedido", "codigo"], keep="first", inplace=True)
+
+        # Combinar con el resto (Solo FENIX, etc.)
+        df_nocruce = pd.concat([df_nc_otros, df_nueva_elite], ignore_index=True)
+
+    # 🔹 Asegurar orden de columnas
+    columnas_nocruce = ["pedido", "codigo", "cantidad", "cantidad_elite", "origen", "tecnico"]
+    df_nocruce = df_nocruce[[c for c in columnas_nocruce if c in df_nocruce.columns]]
+
+    print("✅ Hoja NO_COINCIDEN reconstruida con cantidades reales y técnico correcto (v4.0).")
+
+except Exception as e:
+    print(f"⚠️ Error al reconstruir hoja NO_COINCIDEN: {e}")
 
 # ============================================================
 # 9. CREAR RESUMEN
@@ -452,13 +546,48 @@ if "pedido" in df_elite.columns:
     # Eliminar filas vacías restantes
     df_elite = df_elite.dropna(subset=["pedido"])
 
+# ============================================================
+# 🔧 Limpieza final: evitar pedidos duplicados entre FÉNIX y ELITE
+# ============================================================
+try:
+    if 'df_nocruce' in locals() and not df_nocruce.empty:
+        # Asegurar tipos de datos consistentes
+        df_nocruce["pedido"] = df_nocruce["pedido"].astype(str).str.strip()
+        df_nocruce["origen"] = df_nocruce["origen"].astype(str)
+
+        # 1️⃣ Obtener todos los pedidos que están en "Solo en ELITE"
+        pedidos_elite = df_nocruce.loc[
+            df_nocruce["origen"].str.contains("Solo en ELITE", case=False, na=False),
+            "pedido"
+        ].unique()
+
+        # 2️⃣ Eliminar versiones duplicadas de esos mismos pedidos en "Solo en FENIX"
+        df_nocruce = df_nocruce[
+            ~(
+                (df_nocruce["pedido"].isin(pedidos_elite)) &
+                (df_nocruce["origen"].str.contains("Solo en FENIX", case=False, na=False))
+            )
+        ].copy()
+
+        # 3️⃣ Eliminar duplicados exactos (por pedido + código)
+        df_nocruce.drop_duplicates(subset=["pedido", "codigo"], keep="first", inplace=True)
+
+        # 4️⃣ Ordenar por pedido y código
+        df_nocruce.sort_values(by=["pedido", "codigo"], inplace=True, ignore_index=True)
+
+        print("🧩 Limpieza aplicada: eliminados duplicados FÉNIX/ELITE por pedido (v4.4).")
+    else:
+        print("⚠️ df_nocruce vacío o no definido, se omite limpieza final.")
+except Exception as e:
+    print(f"⚠️ Error al limpiar duplicados entre FÉNIX y ELITE: {e}")
 
 # ============================================================
 # 10. EXPORTAR A EXCEL (manejo de archivo abierto)
 # ============================================================
-ruta_salida.parent.mkdir(parents=True, exist_ok=True)
+
 
 try:
+    ruta_salida.parent.mkdir(parents=True, exist_ok=True)
     with pd.ExcelWriter(ruta_salida, engine="openpyxl") as writer:
         df_merge.to_excel(writer, index=False, sheet_name="CONTROL_ALMACEN")
         resumen.to_excel(writer, index=False, sheet_name="RESUMEN")
