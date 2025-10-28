@@ -75,21 +75,35 @@ def formulario():
         imagenes_guardadas = ", ".join(nombres_imagenes) if nombres_imagenes else "Sin imágenes"
 
 
-        # 🔸 Registrar fila
+              # 🔸 Registrar fila
         fila = resultado.iloc[0]
         registro = {
             "fecha_envio": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "pedido": pedido,
-            "clienteid": fila.get("CLIENTEID", ""),
-            "cliente": fila.get("NOMBRE_CLIENTE", ""),
-            "direccion": fila.get("DIRECCION", ""),
             "observacion": observacion,
-            "estado_campo": estado,
-            "metodo_envio": request.form.get("metodo_envio", ""),
-            "estado_fenix": fila.get("ESTADO", ""),
+            "estado": estado,  # ✅ valor seleccionado por el técnico
             "pdf": pdf_guardado,
             "imagenes": imagenes_guardadas,
+            "cliente": fila.get("NOMBRE_CLIENTE", ""),
+            "direccion": fila.get("DIRECCION", ""),
+            "estado_fenix": fila.get("ESTADO", ""),
+            "clienteid": fila.get("CLIENTEID", ""),
+            "metodo_envio": request.form.get("metodo_envio", "")
         }
+
+        # 🔸 Crear DataFrame ordenado con columnas estándar
+        columnas = [
+            "fecha_envio", "pedido", "observacion", "estado",
+            "pdf", "imagenes", "cliente", "direccion",
+            "estado_fenix", "clienteid", "metodo_envio"
+        ]
+
+        # Si el archivo ya existe, asegúrate de mantener el orden
+        if not df_registros.empty:
+            df_registros = df_registros.reindex(columns=columnas, fill_value="")
+
+        df_final = pd.concat([df_registros, pd.DataFrame([registro])], ignore_index=True)
+        df_final.to_excel(ruta_excel, index=False)
 
         # 🔸 Guardar registro
         df_final = pd.concat([df_registros, pd.DataFrame([registro])], ignore_index=True)
@@ -103,38 +117,61 @@ def formulario():
     return render_template("form.html")
 
 # ------------------------------------------------------------
-# CONSULTA PEDIDO FENIX
+# CONSULTA PEDIDO FENIX / REGISTROS (versión con depuración)
 # ------------------------------------------------------------
 @app.route("/buscar_pedido/<pedido_id>")
 def buscar_pedido(pedido_id):
     pedido_id = str(pedido_id).strip()
+    print(f"🔍 Buscando pedido: {pedido_id}")  # <-- para depuración en consola
+
     if df_fenix.empty:
+        print("❌ Archivo FENIX_ANS está vacío o no existe.")
         return jsonify({"error": "Archivo FENIX_ANS no encontrado o vacío"})
 
+    # 1️⃣ Buscar primero en registros_formulario.xlsx
     ruta_excel = base_dir / "registros_formulario.xlsx"
     if ruta_excel.exists():
         df_reg = pd.read_excel(ruta_excel)
         df_reg["pedido"] = df_reg["pedido"].astype(str)
-        if pedido_id in df_reg["pedido"].values:
-            return jsonify({"mensaje_duplicado": f"⚠ El pedido {pedido_id} ya fue reportado como Cumplido."})
 
+        registro = df_reg[df_reg["pedido"] == pedido_id]
+        if not registro.empty:
+            fila = registro.iloc[0]
+            estado_real = fila.get("estado", "Sin estado")
+            print(f"📋 Encontrado en registros_formulario.xlsx con estado: {estado_real}")
+            return jsonify({
+                "origen": "registro",
+                "mensaje": f"📋 El pedido {pedido_id} ya fue registrado con estado: <strong>{estado_real}</strong>",
+                "estado_real": estado_real,
+                "observacion": fila.get("observacion", ""),
+                "metodo_envio": fila.get("metodo_envio", "")
+            })
+
+    # 2️⃣ Si no está en registros, buscar en FENIX
+    df_fenix.columns = df_fenix.columns.str.strip().str.upper()  # asegurar mayúsculas
     df_fenix["PEDIDO"] = df_fenix["PEDIDO"].astype(str).str.strip()
+
     resultado = df_fenix[df_fenix["PEDIDO"] == pedido_id]
+    print(f"Resultado búsqueda en FENIX → {len(resultado)} filas")
+
     if not resultado.empty:
         fila = resultado.iloc[0]
         datos = {
+            "origen": "fenix",
             "clienteid": str(fila.get("CLIENTEID", "")),
             "nombre_cliente": str(fila.get("NOMBRE_CLIENTE", "")),
             "telefono": str(fila.get("TELEFONO_CONTACTO", "")),
             "celular": str(fila.get("CELULAR_CONTACTO", "")),
             "direccion": str(fila.get("DIRECCION", "")),
             "fecha_limite_ans": str(fila.get("FECHA_LIMITE_ANS", "")),
-            "estado": str(fila.get("ESTADO", ""))
+            "estado_fenix": str(fila.get("ESTADO", ""))
         }
+        print(f"✅ Datos enviados al frontend: {datos}")
         return jsonify(datos)
-    else:
-        return jsonify({"error": "Pedido no encontrado"})
+    
 
+    print("⚠ No se encontró el pedido en ningún archivo.")
+    return jsonify({"error": f"Pedido {pedido_id} no existe...."})
 # ------------------------------------------------------------
 # EJECUCIÓN
 # ------------------------------------------------------------

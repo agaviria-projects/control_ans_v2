@@ -113,7 +113,7 @@
                     </select>
                 </div>
 
-                                <div id="bloqueArchivos">
+                <div id="bloqueArchivos">
                     <div class="mb-3">
                         <label class="form-label">Subir evidencias (PDF o imágenes)</label>
                         <input type="file" 
@@ -140,37 +140,75 @@
                 </div>
             </form>
         </div>
-        <!-- ✅ FOOTER / PIE DE PÁGINA -->
+
+        <!-- ✅ FOOTER -->
         <div class="card-footer footer">
             <p class="mb-0">© 2025 ELITE Ingenieros S.A.S.</p>
             <p class="mb-0">Pasión por lo que hacemos.</p>
         </div>
+    </div>
+</div>
+
+<!-- 🔧 SCRIPTS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
 <script>
-    // Buscar pedido en FENIX
+$(document).ready(function() {
+
+    console.log("✅ Script cargado correctamente");
+
+    // 🔍 Buscar pedido en FENIX o REGISTROS
     $("#btnBuscar").on("click", function() {
         let pedido = $("#pedido").val().trim();
-        if (pedido === "") return alert("Ingrese un número de pedido");
+        if (pedido === "") {
+            $(".card-body").prepend(`
+                <div id="alertaEstado" class="alert alert-warning text-center">
+                    ⚠️ Ingrese un número de pedido válido.
+                </div>
+            `);
+            return;
+        }
+
         $.getJSON(`/buscar_pedido/${pedido}`, function(data) {
+            $("#alertaEstado").remove();
+            $("#infoPedido").hide();
+
             if (data.error) {
-                alert("Pedido no encontrado");
-                $("#infoPedido").hide();
-            } else if (data.mensaje_duplicado) {
-                alert(data.mensaje_duplicado);
-                $("#infoPedido").hide();
-            } else {
+                $(".card-body").prepend(`
+                    <div id="alertaEstado" class="alert alert-danger text-center">
+                        ❌ ${data.error}
+                    </div>
+                `);
+            } 
+            else if (data.origen === "registro") {
+                $(".card-body").prepend(`
+                    <div id="alertaEstado" class="alert alert-info text-center">
+                        ${data.mensaje}
+                    </div>
+                `);
+                $("#estado").text(data.estado_real);
+                $("#infoPedido").show();
+            } 
+            else if (data.origen === "fenix") {
                 $("#clienteid").text(data.clienteid);
                 $("#nombre_cliente").text(data.nombre_cliente);
                 $("#direccion").text(data.direccion);
                 $("#telefono").text(data.telefono);
                 $("#celular").text(data.celular);
                 $("#fecha_limite").text(data.fecha_limite_ans);
-                $("#estado").text(data.estado);
+                $("#estado").text(data.estado_fenix);
                 $("#infoPedido").show();
+                $(".card-body").prepend(`
+                    <div id="alertaEstado" class="alert alert-success text-center">
+                        ✅ Pedido encontrado correctamente en FENIX.
+                    </div>
+                `);
             }
         });
     });
 
-    // Mostrar u ocultar bloque de archivos
+    // 🗂 Mostrar u ocultar bloque de archivos
     $("#metodo_envio").on("change", function() {
         if ($(this).val() === "Formulario") {
             $("#bloqueArchivos").show();
@@ -179,17 +217,17 @@
         }
     }).trigger("change");
 
-    // Limpiar formulario completamente
+    // ♻ Limpiar formulario completamente
     $("#btnLimpiar").on("click", function() {
         $("#formANS")[0].reset();
         $("#infoPedido").hide();
         $("#bloqueArchivos").show();
-        $(".alert").remove(); // Elimina mensajes flash
-        window.location.reload(true); // Refresca
+        $(".alert").remove();
     });
+
+}); // fin document.ready
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
 

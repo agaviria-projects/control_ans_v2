@@ -33,3 +33,9 @@ dist/
 # Ignorar archivos temporales de Excel
 ~$*
 *.tmp
+
+# Ignorar archivos de evidencias (PDFs, imágenes)
+formularios_tecnicos/static/uploads/
+*.pdf
+*.jpg
+*.png
