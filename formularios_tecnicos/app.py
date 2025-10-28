@@ -55,22 +55,25 @@ def formulario():
             flash(f"❌ Pedido {pedido} no existe en FENIX_ANS. Verifique nuevamente.", "danger")
             return redirect(url_for("formulario"))
 
-        # 🔸 Procesar archivos
-        archivo_pdf = request.files.get("archivo_pdf")
-        nombre_pdf = None
-        if archivo_pdf and archivo_pdf.filename:
-            nombre_pdf = f"{pedido}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-            archivo_pdf.save(app.config['UPLOAD_FOLDER'] / nombre_pdf)
+        # 🔸 Procesar archivos combinados (PDF e imágenes)
+        archivos = request.files.getlist("archivos_evidencia")
+        nombres_pdf, nombres_imagenes = [], []
 
-        imagenes = request.files.getlist("imagenes")
-        nombres_imagenes = []
-        for i, imagen in enumerate(imagenes, start=1):
-            if imagen.filename:
-                ext = imagen.filename.split(".")[-1].lower()
-                if ext in ["jpg", "jpeg", "png"]:
-                    nombre_img = f"{pedido}_{i}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
-                    imagen.save(app.config['UPLOAD_FOLDER'] / nombre_img)
-                    nombres_imagenes.append(nombre_img)
+        for i, archivo in enumerate(archivos, start=1):
+            if archivo and archivo.filename:
+                ext = archivo.filename.split(".")[-1].lower()
+                nombre_archivo = f"{pedido}_{i}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
+                archivo.save(app.config['UPLOAD_FOLDER'] / nombre_archivo)
+
+                if ext == "pdf":
+                    nombres_pdf.append(nombre_archivo)
+                elif ext in ["jpg", "jpeg", "png"]:
+                    nombres_imagenes.append(nombre_archivo)
+
+        # 🔸 Registrar si se subieron archivos o no
+        pdf_guardado = ", ".join(nombres_pdf) if nombres_pdf else "Sin archivo"
+        imagenes_guardadas = ", ".join(nombres_imagenes) if nombres_imagenes else "Sin imágenes"
+
 
         # 🔸 Registrar fila
         fila = resultado.iloc[0]
@@ -84,8 +87,8 @@ def formulario():
             "estado_campo": estado,
             "metodo_envio": request.form.get("metodo_envio", ""),
             "estado_fenix": fila.get("ESTADO", ""),
-            "pdf": nombre_pdf or "Sin archivo",
-            "imagenes": ", ".join(nombres_imagenes) if nombres_imagenes else "Sin imágenes"
+            "pdf": pdf_guardado,
+            "imagenes": imagenes_guardadas,
         }
 
         # 🔸 Guardar registro

@@ -39,6 +39,13 @@
             .btn { width: 100%; margin-top: 5px; }
             .d-flex { flex-direction: column; }
         }
+        .footer {
+            text-align: center;
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-top: 10px;
+            line-height: 1.2;
+        }
     </style>
 </head>
 <body>
@@ -90,9 +97,9 @@
                 <div class="mb-3">
                     <label class="form-label">Estado</label>
                     <select name="estado" class="form-select" required>
-                        <option value="Cumplido">Cumplido</option>
+                        <option value="Ejecutado en Campo">Ejecutado en Campo</option>
                         <option value="Descartado">Descartado</option>
-                        <option value="Pendiente">Pendiente</option>
+                        <option value="Pendiente Visita">Pendiente Visita</option>
                     </select>
                 </div>
 
@@ -108,25 +115,23 @@
 
                 <div id="bloqueArchivos">
                     <div class="mb-3">
-                        <label class="form-label">Subir evidencia PDF</label>
-                        <input type="file" name="archivo_pdf" class="form-control" accept=".pdf,application/pdf" capture="environment">
+                        <label class="form-label">Subir evidencias (PDF o imágenes)</label>
+                        <input type="file" 
+                            name="archivos_evidencia" 
+                            class="form-control" 
+                            accept=".pdf,image/*" 
+                            multiple 
+                            capture="environment">
+                        <small class="text-muted">
+                            📷 Puede tomar fotos con la cámara o elegir archivos PDF / imágenes desde la galería.
+                        </small>
                     </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Tomar o elegir imágenes</label>
-                        <input type="file" name="imagenes" class="form-control" accept="image/*" multiple capture="environment">
-                    </div>
-                </div>
-
-                <div class="d-flex justify-content-between flex-wrap gap-2">
-                    <button type="submit" class="btn btn-success flex-fill">Enviar Registro</button>
-                    <button type="button" id="btnLimpiar" class="btn btn-secondary flex-fill">Limpiar</button>
-                </div>
             </form>
         </div>
 
         <div class="card-footer footer">
-            © 2025 ELITE Ingenieros S.A.S. | Pasión por lo que hacemos.
+            <p class="mb-0">© 2025 ELITE Ingenieros S.A.S.</p>
+            <p class="mb-0">Pasión por lo que hacemos.</p>
         </div>
     </div>
 </div>
