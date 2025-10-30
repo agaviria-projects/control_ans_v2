@@ -46,10 +46,80 @@ def leer_google_sheet(service):
     except Exception as e:
         print(f"❌ Error al leer Google Sheet: {e}")
         return None
+# ------------------------------------------------------------
+# DESCARGAR Y RENOMBRAR PDFS EN ONEDRIVE (v4.9 mejorado)
+# ------------------------------------------------------------
+def descargar_pdfs(service, df):
+    # Normalizar encabezados para evitar errores por tildes o espacios
+    df.columns = (
+        df.columns.str.strip()
+        .str.lower()
+        .str.replace(" ", "_")
+        .str.replace("á", "a")
+        .str.replace("é", "e")
+        .str.replace("í", "i")
+        .str.replace("ó", "o")
+        .str.replace("ú", "u")
+        .str.replace("ñ", "n")
+    )
+    print("🧭 Encabezados normalizados:", list(df.columns))
+
+    # Buscar las columnas relevantes por nombre aproximado
+    col_pedido = next((c for c in df.columns if "pedido" in c), None)
+    col_tecnico = next((c for c in df.columns if "tecnic" in c), None)
+    col_url = next((c for c in df.columns if "evidenc" in c), None)
+
+    if not all([col_pedido, col_tecnico, col_url]):
+        print("❌ No se pudieron identificar las columnas necesarias.")
+        print(f"pedido={col_pedido}, tecnico={col_tecnico}, url={col_url}")
+        return
+
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    carpeta_dia = os.path.join(RUTA_ONEDRIVE, fecha_hoy)
+    os.makedirs(carpeta_dia, exist_ok=True)
+    print(f"\n📁 Carpeta destino: {carpeta_dia}\n")
+
+    for i, fila in df.iterrows():
+        pedido = str(fila.get(col_pedido, "")).strip()
+        tecnico = str(fila.get(col_tecnico, "")).strip()
+        url = str(fila.get(col_url, "")).strip()
+
+        if not (pedido and tecnico and url):
+            print(f"⚠️ Fila {i+1} incompleta, se omite.")
+            continue
+
+        # Extraer ID de la URL
+        if "id=" in url:
+            file_id = url.split("id=")[-1]
+        else:
+            print(f"⚠️ URL inválida en la fila {i+1}: {url}")
+            continue
+
+        nombre_archivo = f"{pedido} - {tecnico}.pdf"
+        ruta_local = os.path.join(carpeta_dia, nombre_archivo)
+
+        try:
+            print(f"⬇️ Descargando {nombre_archivo} ...")
+            request = service.files().get_media(fileId=file_id)
+            with io.FileIO(ruta_local, "wb") as fh:
+                downloader = MediaIoBaseDownload(fh, request)
+                done = False
+                while not done:
+                    status, done = downloader.next_chunk()
+                    if status:
+                        progreso = int(status.progress() * 100)
+                        print(f"   Progreso: {progreso}%")
+
+            print(f"✅ Guardado en: {ruta_local}\n")
+
+        except Exception as e:
+            print(f"❌ Error al descargar {nombre_archivo}: {e}")
 
 # ------------------------------------------------------------
-# PROGRAMA PRINCIPAL
+# EJECUCIÓN COMPLETA
 # ------------------------------------------------------------
 if __name__ == "__main__":
     service = crear_servicio()
     df = leer_google_sheet(service)
+    if df is not None:
+        descargar_pdfs(service, df)
