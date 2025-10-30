@@ -40,3 +40,6 @@ formularios_tecnicos/static/uploads/
 *.jpg
 *.png
 control-ans-evidencias-1ef0b1b8d1a8.json
+
+# Archivos de credenciales
+*.json
