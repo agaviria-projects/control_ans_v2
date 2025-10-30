@@ -1,19 +1,23 @@
 # ============================================================
-# DESCARGAR Y RENOMBRAR PDF DESDE GOOGLE SHEET - v4.8 (método alternativo sin Sheets API)
+# DESCARGAR Y RENOMBRAR PDF DESDE GOOGLE SHEET - v4.10
+# Integración completa: Drive → OneDrive → Google Sheet
 # ============================================================
 import os
 import io
+import gspread
 import pandas as pd
+import time
 from datetime import datetime
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
+from gspread.utils import rowcol_to_a1
 
 # ------------------------------------------------------------
 # CONFIGURACIÓN
 # ------------------------------------------------------------
-CRED_PATH = "control-ans-evidencias-1ef0b1b8d1a8.json"
-SHEET_ID = "1bPLGVVz50k6PlNp382isJrqtW_3IsrrhGW0UUlMf-bM"  # ID del Formulario Control ANS
+CRED_PATH = r"C:\Users\hector.gaviria\Desktop\Control_ANS\control-ans-elite-f4ea102db569.json"
+SHEET_ID = "1bPLGVVz50k6PlNp382isJrqtW_3IsrrhGW0UUlMf-bM"
 RUTA_ONEDRIVE = r"C:\Users\hector.gaviria\OneDrive - Elite Ingenieros SAS\Evidencias_PDF"
 
 # ------------------------------------------------------------
@@ -27,11 +31,33 @@ def crear_servicio():
     return build("drive", "v3", credentials=creds)
 
 # ------------------------------------------------------------
-# LEER GOOGLE SHEET COMO CSV
+# CONECTAR A GOOGLE SHEET CON GSPREAD (selección exacta de pestaña)
+# ------------------------------------------------------------
+def conectar_gspread():
+    creds = service_account.Credentials.from_service_account_file(
+        CRED_PATH,
+        scopes=["https://www.googleapis.com/auth/spreadsheets"]
+    )
+    client = gspread.authorize(creds)
+    spreadsheet = client.open_by_key(SHEET_ID)
+
+    # Intentar detectar la hoja del formulario por nombre aproximado
+    for ws in spreadsheet.worksheets():
+        nombre = ws.title.lower().replace(" ", "")
+        if "form" in nombre or "respuesta" in nombre:
+            print(f"📄 Hoja activa detectada: {ws.title}")
+            return ws
+
+    # Si no la encuentra, usar la primera
+    print("⚠️ No se detectó una hoja de respuestas; usando la primera hoja.")
+    return spreadsheet.sheet1
+
+
+# ------------------------------------------------------------
+# LEER GOOGLE SHEET COMO CSV (solo lectura)
 # ------------------------------------------------------------
 def leer_google_sheet(service):
     try:
-        # Exportar el sheet como CSV temporal
         request = service.files().export_media(fileId=SHEET_ID, mimeType="text/csv")
         fh = io.BytesIO()
         downloader = MediaIoBaseDownload(fh, request)
@@ -46,11 +72,11 @@ def leer_google_sheet(service):
     except Exception as e:
         print(f"❌ Error al leer Google Sheet: {e}")
         return None
+
 # ------------------------------------------------------------
-# DESCARGAR Y RENOMBRAR PDFS EN ONEDRIVE (v4.9 mejorado)
+# DESCARGAR Y RENOMBRAR PDFS EN ONEDRIVE
 # ------------------------------------------------------------
 def descargar_pdfs(service, df):
-    # Normalizar encabezados para evitar errores por tildes o espacios
     df.columns = (
         df.columns.str.strip()
         .str.lower()
@@ -64,7 +90,6 @@ def descargar_pdfs(service, df):
     )
     print("🧭 Encabezados normalizados:", list(df.columns))
 
-    # Buscar las columnas relevantes por nombre aproximado
     col_pedido = next((c for c in df.columns if "pedido" in c), None)
     col_tecnico = next((c for c in df.columns if "tecnic" in c), None)
     col_url = next((c for c in df.columns if "evidenc" in c), None)
@@ -88,7 +113,6 @@ def descargar_pdfs(service, df):
             print(f"⚠️ Fila {i+1} incompleta, se omite.")
             continue
 
-        # Extraer ID de la URL
         if "id=" in url:
             file_id = url.split("id=")[-1]
         else:
@@ -109,17 +133,146 @@ def descargar_pdfs(service, df):
                     if status:
                         progreso = int(status.progress() * 100)
                         print(f"   Progreso: {progreso}%")
-
             print(f"✅ Guardado en: {ruta_local}\n")
 
         except Exception as e:
             print(f"❌ Error al descargar {nombre_archivo}: {e}")
 
 # ------------------------------------------------------------
-# EJECUCIÓN COMPLETA
+# ACTUALIZAR RUTAS LOCALES EN GOOGLE SHEET - v4.11
+# ------------------------------------------------------------
+def actualizar_rutas_locales(df):
+    print("\n🔄 Iniciando actualización de rutas en Google Sheet...")
+
+    try:
+        sheet = conectar_gspread()
+    except Exception as e:
+        print(f"❌ Error conectando a Google Sheet: {e}")
+        return
+
+    # Limpiar nombres de columnas en el DataFrame
+    df.columns = (
+        df.columns.astype(str)
+        .str.strip()
+        .str.replace(r"[\r\n]+", " ", regex=True)
+        .str.replace(" ", "_")
+        .str.lower()
+        .str.normalize("NFKD")
+        .str.encode("ascii", errors="ignore")
+        .str.decode("utf-8")
+    )
+
+    col_pedido = next((c for c in df.columns if "pedido" in c), None)
+    col_tecnico = next((c for c in df.columns if "tecnic" in c), None)
+    if not all([col_pedido, col_tecnico]):
+        print("❌ No se encontraron las columnas de pedido y técnico.")
+        return
+
+    # Leer registros actuales del Sheet
+    data = sheet.get_all_records()
+    encabezados_original = sheet.row_values(1)
+
+    # Detección flexible de columna de evidencia
+    col_evidencia_index = None
+    for idx, name in enumerate(encabezados_original, start=1):
+        name_clean = (
+            str(name)
+            .replace("\n", "")
+            .replace("\r", "")
+            .strip()
+            .lower()
+            .replace(" ", "")
+        )
+        if "evidenc" in name_clean or "subeaqu" in name_clean:
+            col_evidencia_index = idx
+            print(f"📍 Columna de evidencia detectada: {name} (índice {idx})")
+            break
+
+    if not col_evidencia_index:
+        print("❌ No se detectó la columna de evidencia.")
+        print("Encabezados encontrados:", encabezados_original)
+        return
+
+    # --------------------------------------------------------
+    # 🔧 Nueva función interna para normalizar claves
+    # --------------------------------------------------------
+    def normalizar_nombre(texto):
+        return (
+            str(texto)
+            .strip()
+            .lower()
+            .replace(" ", "")
+            .replace("á", "a")
+            .replace("é", "e")
+            .replace("í", "i")
+            .replace("ó", "o")
+            .replace("ú", "u")
+            .replace("ñ", "n")
+        )
+
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    carpeta_dia = os.path.join(RUTA_ONEDRIVE, fecha_hoy)
+    print(f"📋 Registros totales: {len(data)}")
+
+    # --------------------------------------------------------
+    # 🔁 Actualizar rutas locales con coincidencia flexible (v4.12 final)
+    # --------------------------------------------------------
+    total_registros = len(data)
+    enlaces_actualizados = 0
+    enlaces_no_encontrados = 0
+
+    for i, fila in enumerate(data, start=2):
+        fila_normalizada = {normalizar_nombre(k): v for k, v in fila.items()}
+        pedido = str(fila_normalizada.get("numerodelpedido", "")).strip()
+        tecnico = str(fila_normalizada.get("nombredeltecnico", "")).strip()
+        if not pedido or not tecnico:
+            continue
+
+        nombre_pdf = f"{pedido} - {tecnico}.pdf"
+        ruta_local = os.path.join(carpeta_dia, nombre_pdf)
+
+        if os.path.exists(ruta_local):
+            celda = rowcol_to_a1(i, col_evidencia_index)
+
+            # ============================================================
+            # 🔗 Convertir ruta local a enlace web OneDrive
+            # ============================================================
+            # Ejemplo:
+            # C:\Users\hector.gaviria\OneDrive - Elite Ingenieros SAS\Evidencias_PDF\2025-10-30\12345678 - Edwin Martinez.pdf
+            # se convierte en:
+            # https://eliteingenierosas-my.sharepoint.com/personal/h_gaviria_eliteingenieros_com_co/Documents/Evidencias_PDF/2025-10-30/12345678 - Edwin Martinez.pdf
+
+            ruta_web = ruta_local.replace(
+                r"C:\Users\hector.gaviria\OneDrive - Elite Ingenieros SAS",
+                "https://eliteingenierosas-my.sharepoint.com/personal/h_gaviria_eliteingenieros_com_co/Documents"
+            ).replace("\\", "/")
+
+            # ============================================================
+            # 🔗 Insertar hipervínculo clickeable en Google Sheet
+            # ============================================================
+            sheet.update_acell(celda, f'=HIPERVINCULO("{ruta_web}"; "Abrir PDF")')
+            time.sleep(1)  # ✅ Pausa breve para que el cambio se refleje
+            enlaces_actualizados += 1
+            print(f"✅ Enlace web actualizado para {nombre_pdf}")
+
+        else:
+            enlaces_no_encontrados += 1
+            print(f"⚠️ No se encontró el PDF: {nombre_pdf}")
+    # --------------------------------------------------------
+    # 🧾 Resumen final del proceso
+    # --------------------------------------------------------
+    print("\n🎯 Actualización de rutas completada.\n")
+    print(f"📊 Total de registros procesados: {total_registros}")
+    print(f"✅ Enlaces actualizados correctamente: {enlaces_actualizados}")
+    print(f"⚠️ PDFs no encontrados: {enlaces_no_encontrados}")
+    print("\n💡 Tip: Verifica en Google Sheets que los enlaces 'Abrir PDF' sean clickeables y abran desde OneDrive.\n")
+    
+# ------------------------------------------------------------
+# PROGRAMA PRINCIPAL
 # ------------------------------------------------------------
 if __name__ == "__main__":
     service = crear_servicio()
     df = leer_google_sheet(service)
     if df is not None:
         descargar_pdfs(service, df)
+        actualizar_rutas_locales(df)

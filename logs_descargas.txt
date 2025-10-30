@@ -1,0 +1,40 @@
+============================================================ 
+🕒 Inicio de ejecución: jue 30/10/2025 15:14:34,67 
+
+[INFO] Descargando evidencias del 2025-10-30...
+
+[WARN] No se encontraron archivos en la carpeta del formulario.
+✅ Fin de ejecución: jue 30/10/2025 15:14:38,88 
+ 
+============================================================ 
+🕒 Inicio de ejecución: jue 30/10/2025 15:14:58,34 
+
+[INFO] Descargando evidencias del 2025-10-30...
+
+[WARN] No se encontraron archivos en la carpeta del formulario.
+✅ Fin de ejecución: jue 30/10/2025 15:15:02,53 
+ 
+============================================================ 
+🕒 Inicio de ejecución: jue 30/10/2025 15:17:26,90 
+
+[INFO] Descargando evidencias del 2025-10-30...
+
+[OK] Archivo descargado: pdf prueba - Elite Ingenieros S.A.S.pdf
+   Progreso: 100%
+[OK] Archivo descargado: pdf prueba - Elite Ingenieros S.A.S.pdf
+[MOVIDO] Archivo movido a PAPELERA_API: pdf prueba - Elite Ingenieros S.A.S.pdf
+
+✅ Todos los archivos (1) se guardaron en: C:\Users\hector.gaviria\Desktop\Control_ANS\Evidencias_ANS\2025-10-30
+🗑️ Archivos movidos correctamente a PAPELERA_API: 1
+
+------------------------------------------------------------
+[OK] PROCESO COMPLETADO CON ÉXITO
+[INFO] La carpeta del formulario quedó vacía.
+[INFO] Los archivos se encuentran respaldados en:
+       → C:\Users\hector.gaviria\Desktop\Control_ANS\Evidencias_ANS\2025-10-30
+[INFO] Los archivos del Drive fueron movidos a la carpeta: PAPELERA_API
+[TIP]  Cuando desees liberar espacio, entra a Google Drive → PAPELERA_API y elimina definitivamente los archivos.
+------------------------------------------------------------
+
+✅ Fin de ejecución: jue 30/10/2025 15:17:34,98 
+ 

@@ -1,4 +1,4 @@
-# ------------------------------------------------------------
+# -*- coding: utf-8 -*-
 # DESCARGAR EVIDENCIAS DE GOOGLE DRIVE Y MOVER A PAPELERA_API
 # ------------------------------------------------------------
 import os
@@ -7,6 +7,11 @@ from datetime import datetime
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
+import sys
+
+# Forzar salida UTF-8 para registros
+sys.stdout.reconfigure(encoding='utf-8')
+
 
 # ============================================================
 # CONFIGURACIÓN
@@ -34,14 +39,14 @@ def descargar_archivos(service):
     carpeta_dia = os.path.join(CARPETA_LOCAL, fecha_hoy)
     os.makedirs(carpeta_dia, exist_ok=True)
 
-    print(f"\n📁 Descargando evidencias del {fecha_hoy}...\n")
+    print(f"\n[INFO] Descargando evidencias del {fecha_hoy}...\n")
 
     query = f"'{FOLDER_ID_FORMULARIO}' in parents and mimeType != 'application/vnd.google-apps.folder'"
     results = service.files().list(q=query, fields="files(id, name, parents)").execute()
     files = results.get("files", [])
 
     if not files:
-        print("⚠️ No se encontraron archivos en la carpeta del formulario.")
+        print("[WARN] No se encontraron archivos en la carpeta del formulario.")
         return
 
     descargados = 0
@@ -52,7 +57,7 @@ def descargar_archivos(service):
         file_name = file["name"]
         file_path = os.path.join(carpeta_dia, file_name)
 
-        print(f"⬇️ Descargando: {file_name}...")
+        print(f"[OK] Archivo descargado: {file_name}")
         request = service.files().get_media(fileId=file_id)
         fh = io.FileIO(file_path, "wb")
         downloader = MediaIoBaseDownload(fh, request)
@@ -63,7 +68,7 @@ def descargar_archivos(service):
                 print(f"   Progreso: {int(status.progress() * 100)}%")
 
         descargados += 1
-        print(f"✅ Archivo descargado: {file_name}")
+        print(f"[OK] Archivo descargado: {file_name}")
 
         # Mover archivo a PAPELERA_API quitando todos los padres anteriores
         try:
@@ -79,23 +84,24 @@ def descargar_archivos(service):
             ).execute()
 
             movidos += 1
-            print(f"🗂️ Archivo movido a PAPELERA_API: {file_name}")
+            print(f"[MOVIDO] Archivo movido a PAPELERA_API: {file_name}")
 
         except Exception as e:
-            print(f"⚠️ No se pudo mover {file_name}: {e}")
+            print(f"[ERROR] No se pudo mover {file_name}: {e}")
 
     print(f"\n✅ Todos los archivos ({descargados}) se guardaron en: {carpeta_dia}")
     print(f"🗑️ Archivos movidos correctamente a PAPELERA_API: {movidos}")
 
     # MENSAJE AUTOMÁTICO FINAL
     print("\n------------------------------------------------------------")
-    print("✅ PROCESO COMPLETADO CON ÉXITO")
-    print("📂 La carpeta del formulario quedó vacía.")
-    print("📦 Los archivos se encuentran respaldados en:")
-    print(f"   → {carpeta_dia}")
-    print("🗂️ Los archivos del Drive fueron movidos a la carpeta: PAPELERA_API")
-    print("💡 TIP: Cuando desees liberar espacio, entra a Google Drive → PAPELERA_API y elimina definitivamente los archivos.")
+    print("[OK] PROCESO COMPLETADO CON ÉXITO")
+    print("[INFO] La carpeta del formulario quedó vacía.")
+    print("[INFO] Los archivos se encuentran respaldados en:")
+    print(f"       → {carpeta_dia}")
+    print("[INFO] Los archivos del Drive fueron movidos a la carpeta: PAPELERA_API")
+    print("[TIP]  Cuando desees liberar espacio, entra a Google Drive → PAPELERA_API y elimina definitivamente los archivos.")
     print("------------------------------------------------------------\n")
+
 
 # ============================================================
 # EJECUCIÓN
