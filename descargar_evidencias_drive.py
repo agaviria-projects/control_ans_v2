@@ -27,7 +27,7 @@ def crear_servicio():
     return build("drive", "v3", credentials=creds)
 
 # ============================================================
-# DESCARGAR Y MOVER ARCHIVOS
+# DESCARGAR Y MOVER ARCHIVOS (versión robusta)
 # ============================================================
 def descargar_archivos(service):
     fecha_hoy = datetime.now().strftime("%Y-%m-%d")
@@ -37,7 +37,7 @@ def descargar_archivos(service):
     print(f"\n📁 Descargando evidencias del {fecha_hoy}...\n")
 
     query = f"'{FOLDER_ID_FORMULARIO}' in parents and mimeType != 'application/vnd.google-apps.folder'"
-    results = service.files().list(q=query, fields="files(id, name)").execute()
+    results = service.files().list(q=query, fields="files(id, name, parents)").execute()
     files = results.get("files", [])
 
     if not files:
@@ -65,15 +65,22 @@ def descargar_archivos(service):
         descargados += 1
         print(f"✅ Archivo descargado: {file_name}")
 
-        # Mover archivo a la carpeta PAPELERA_API
+        # Mover archivo a PAPELERA_API quitando todos los padres anteriores
         try:
+            # Obtener todos los padres del archivo
+            file_metadata = service.files().get(fileId=file_id, fields="parents").execute()
+            padres = ",".join(file_metadata.get("parents", []))
+
+            # Actualizar: mover solo a PAPELERA_API
             service.files().update(
                 fileId=file_id,
                 addParents=FOLDER_ID_PAPELERA,
-                removeParents=FOLDER_ID_FORMULARIO
+                removeParents=padres
             ).execute()
+
             movidos += 1
             print(f"🗂️ Archivo movido a PAPELERA_API: {file_name}")
+
         except Exception as e:
             print(f"⚠️ No se pudo mover {file_name}: {e}")
 
