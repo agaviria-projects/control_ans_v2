@@ -99,10 +99,21 @@ def descargar_pdfs(service, df):
         print(f"pedido={col_pedido}, tecnico={col_tecnico}, url={col_url}")
         return
 
-    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
-    carpeta_dia = os.path.join(RUTA_ONEDRIVE, fecha_hoy)
+    # ============================================================
+    # Crear carpeta según la fecha del formulario (columna "marca_temporal")
+    # ============================================================
+
+    # Convertir la columna 'marca_temporal' a tipo datetime
+    df["marca_temporal"] = pd.to_datetime(df["marca_temporal"], errors="coerce", dayfirst=True)
+
+    # Obtener la fecha más reciente (última evidencia cargada)
+    fecha_formulario = df["marca_temporal"].max().strftime("%Y-%m-%d")
+
+    # Crear la carpeta basada en esa fecha
+    carpeta_dia = os.path.join(RUTA_ONEDRIVE, fecha_formulario)
     os.makedirs(carpeta_dia, exist_ok=True)
-    print(f"\n📁 Carpeta destino: {carpeta_dia}\n")
+
+    print(f"📁 Carpeta destino creada según formulario: {carpeta_dia}")
 
     for i, fila in df.iterrows():
         pedido = str(fila.get(col_pedido, "")).strip()

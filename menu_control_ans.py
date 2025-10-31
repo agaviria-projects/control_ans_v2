@@ -65,9 +65,8 @@ def ejecutar_comando(nombre, comando, boton=None):
         try:
             # Activar animación continua
             barra_progreso.config(mode="indeterminate")
-            barra_progreso.start(20)  # velocidad del desplazamiento
+            barra_progreso.start(20)
 
-            # Lanzar proceso
             proceso = subprocess.Popen(
                 comando,
                 shell=True,
@@ -88,7 +87,6 @@ def ejecutar_comando(nombre, comando, boton=None):
 
             proceso.wait()
 
-            # Resultado final
             barra_progreso.stop()
             barra_progreso.config(mode="determinate")
 
@@ -108,22 +106,19 @@ def ejecutar_comando(nombre, comando, boton=None):
             pie_estado.config(text=f"⚠️ Error en {nombre}. Revisa el log.", fg="#C0392B")
 
         finally:
-            # Restaurar botón y pie
             if boton and color_original:
                 restaurar_boton(boton, color_original)
             log_text.insert(tk.END, "-" * 60 + "\n", "separador")
             log_text.see(tk.END)
             pie_estado.config(text="⚙️ Esperando acción del usuario...", fg="#1B263B")
             ventana.update_idletasks()
-
-            # Reinicio suave de barra
             ventana.after(1500, lambda: barra_progreso.config(value=0))
 
     threading.Thread(target=tarea, daemon=True).start()
 
 
 # ------------------------------------------------------------
-# COMANDOS DE BOTONES
+# COMANDO DE BOTÓN INFORME
 # ------------------------------------------------------------
 def ejecutar_informe():
     comando = f'python -X utf8 "{RUTA_SCRIPT_ANS}"'
@@ -199,32 +194,57 @@ titulo_control = tk.Label(frame_banner, text="Control ANS", font=("Segoe UI", 14
 titulo_control.pack(pady=(0, 10))
 
 # ------------------------------------------------------------
-# BOTONES PRINCIPALES (EJECUTAR ANS y CONTROL ALMACÉN)
+# BOTONES PRINCIPALES – 1 SOLA FILA
 # ------------------------------------------------------------
 frame_botones = tk.Frame(ventana, bg="#EAEDED")
-frame_botones.pack(pady=5)
+frame_botones.pack(pady=5, fill="x")
+frame_botones.columnconfigure((0, 1, 2, 3), weight=1)
 
-# Botón 1: Ejecutar Informe ANS
+# Botón 1: EJECUTAR INFORME ANS
 btn_informe = tk.Button(frame_botones, text="EJECUTAR\nINFORME ANS", command=ejecutar_informe,
                         width=20, height=2, bg="#1E8449", fg="white", font=("Segoe UI", 10, "bold"),
                         relief="ridge", borderwidth=3, cursor="hand2",
                         activebackground="#229954", activeforeground="white")
-btn_informe.grid(row=0, column=0, padx=10)
+btn_informe.grid(row=0, column=0, padx=10, pady=5, sticky="ew")
 
-# Ruta del script de validación
+# Botón 2: CONTROL ALMACÉN
 RUTA_SCRIPT_VALIDACION = r"validar_export_almacen.py"
 
 def ejecutar_validacion():
     comando = f'python -X utf8 "{RUTA_SCRIPT_VALIDACION}"'
     ejecutar_comando("Control Almacén ANS", comando, btn_validar)
 
-# Botón 2: Control Almacén ANS
-btn_validar = tk.Button(frame_botones, text="CONTROL\n FENIX Vs ALMACÉN", command=ejecutar_validacion,
+btn_validar = tk.Button(frame_botones, text="CONTROL\nFENIX Vs ALMACÉN", command=ejecutar_validacion,
                         width=20, height=2, bg="#1E8449", fg="white", font=("Segoe UI", 10, "bold"),
                         relief="ridge", borderwidth=3, cursor="hand2",
                         activebackground="#229954", activeforeground="white")
-btn_validar.grid(row=0, column=1, padx=10)
+btn_validar.grid(row=0, column=1, padx=10, pady=5, sticky="ew")
 
+# Botón 3: DESCARGAR EVIDENCIAS DRIVE
+RUTA_SCRIPT_DESCARGA = r"descargar_drive_v48.py"
+
+def ejecutar_descarga_drive():
+    comando = f'python -X utf8 "{RUTA_SCRIPT_DESCARGA}"'
+    ejecutar_comando("Descarga Evidencias Drive", comando, btn_descarga_drive)
+
+btn_descarga_drive = tk.Button(frame_botones, text="DESCARGAR\nEVIDENCIAS DRIVE", command=ejecutar_descarga_drive,
+                               width=20, height=2, bg="#1E8449", fg="white", font=("Segoe UI", 10, "bold"),
+                               relief="ridge", borderwidth=3, cursor="hand2",
+                               activebackground="#1E8449", activeforeground="white")
+btn_descarga_drive.grid(row=0, column=2, padx=10, pady=5, sticky="ew")
+
+# Botón 4: MOVER A PAPELERA_API
+RUTA_SCRIPT_PAPELERA = r"descargar_evidencias_drive.py"
+
+def ejecutar_papelera_drive():
+    comando = f'python -X utf8 "{RUTA_SCRIPT_PAPELERA}"'
+    ejecutar_comando("Mover Evidencias a PAPELERA_API", comando, btn_papelera_drive)
+
+btn_papelera_drive = tk.Button(frame_botones, text="MOVER A\nPAPELERA API", command=ejecutar_papelera_drive,
+                               width=20, height=2, bg="#C0392B", fg="white", font=("Segoe UI", 10, "bold"),
+                               relief="ridge", borderwidth=3, cursor="hand2",
+                               activebackground="#922B21", activeforeground="white")
+btn_papelera_drive.grid(row=0, column=3, padx=10, pady=5, sticky="ew")
 
 # ------------------------------------------------------------
 # BARRA DE PROGRESO
@@ -247,16 +267,13 @@ log_text.tag_config("error", foreground="#C0392B")
 log_text.tag_config("separador", foreground="#95A5A6")
 
 # ------------------------------------------------------------
-# BOTÓN SALIR (entre log y pie corporativo)
+# BOTÓN SALIR
 # ------------------------------------------------------------
 frame_salida = tk.Frame(ventana, bg="#EAEDED")
-frame_salida.pack(pady=(0, 10))  # deja un espacio suave sobre el pie
-
+frame_salida.pack(pady=(0, 10))
 btn_salir = tk.Button(frame_salida, text="SALIR DEL PANEL", command=ventana.quit,
-                      width=25, height=2,
-                      bg="#1E8449", fg="white",
-                      font=("Segoe UI", 10, "bold"),
-                      relief="ridge", borderwidth=3, cursor="hand2",
+                      width=25, height=2, bg="#1E8449", fg="white",
+                      font=("Segoe UI", 10, "bold"), relief="ridge", borderwidth=3, cursor="hand2",
                       activebackground="#C0392B", activeforeground="white")
 btn_salir.pack(pady=3)
 
@@ -265,30 +282,18 @@ btn_salir.pack(pady=3)
 # ------------------------------------------------------------
 frame_footer = tk.Frame(ventana, bg="#EAEDED")
 frame_footer.pack(side="bottom", fill="x", pady=(0, 5), ipady=4)
-
 tk.Frame(frame_footer, bg="#B3B6B7", height=2).pack(fill="x", pady=(2, 3))
 
 frame_pie = tk.Frame(frame_footer, bg="#EAEDED")
 frame_pie.pack(fill="x", pady=(0, 3))
 
-pie_estado = tk.Label(
-    frame_pie,
-    text="\u2699 Esperando acción del usuario...",
-    font=("Segoe UI", 9, "italic"),
-    fg="#1B263B",
-    bg="#EAEDED",
-    anchor="w"
-)
+pie_estado = tk.Label(frame_pie, text="\u2699 Esperando acción del usuario...",
+                      font=("Segoe UI", 9, "italic"), fg="#1B263B", bg="#EAEDED", anchor="w")
 pie_estado.pack(side="left", padx=(15, 0))
 
-pie_corporativo = tk.Label(
-    frame_pie,
+pie_corporativo = tk.Label(frame_pie,
     text="© 2025 ELITE Ingenieros S.A.S.  |  Pasión por lo que hacemos.",
-    font=("Segoe UI", 9, "italic"),
-    fg="#1B263B",
-    bg="#EAEDED",
-    anchor="e"
-)
+    font=("Segoe UI", 9, "italic"), fg="#1B263B", bg="#EAEDED", anchor="e")
 pie_corporativo.pack(side="right", padx=(0, 15))
 
 # ------------------------------------------------------------
