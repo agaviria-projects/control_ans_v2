@@ -1,10 +1,27 @@
-et_xmlfile==2.0.0
+# =============================
+# DEPENDENCIAS PRINCIPALES DEL SISTEMA CONTROL ANS v2
+# =============================
+
+# --- Procesamiento y análisis de datos ---
+pandas==2.3.3
 numpy==2.3.4
 openpyxl==3.1.5
-pandas==2.3.3
-pillow==12.0.0
 python-dateutil==2.9.0.post0
 pytz==2025.2
-six==1.17.0
-tk==0.1.0
 tzdata==2025.2
+
+# --- Manipulación y estilos en Excel ---
+et_xmlfile==2.0.0
+pillow==12.0.0
+
+# --- Interfaz gráfica ---
+tk==0.1.0
+
+# --- Conexión con Google Sheets y Drive ---
+gspread==6.1.0
+google-auth==2.35.0
+google-auth-oauthlib==1.2.1
+
+# --- Utilidades ---
+six==1.17.0
+
