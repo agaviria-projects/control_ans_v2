@@ -3,6 +3,7 @@
 # ------------------------------------------------------------
 import os
 import io
+import time
 from datetime import datetime
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -11,7 +12,6 @@ import sys
 
 # Forzar salida UTF-8 para registros
 sys.stdout.reconfigure(encoding='utf-8')
-
 
 # ============================================================
 # CONFIGURACIÓN
@@ -32,7 +32,7 @@ def crear_servicio():
     return build("drive", "v3", credentials=creds)
 
 # ============================================================
-# DESCARGAR Y MOVER ARCHIVOS (versión robusta)
+# DESCARGAR Y MOVER ARCHIVOS (versión optimizada)
 # ============================================================
 def descargar_archivos(service):
     fecha_hoy = datetime.now().strftime("%Y-%m-%d")
@@ -57,26 +57,28 @@ def descargar_archivos(service):
         file_name = file["name"]
         file_path = os.path.join(carpeta_dia, file_name)
 
-        print(f"[OK] Archivo descargado: {file_name}")
-        request = service.files().get_media(fileId=file_id)
-        fh = io.FileIO(file_path, "wb")
-        downloader = MediaIoBaseDownload(fh, request)
-        done = False
-        while not done:
-            status, done = downloader.next_chunk()
-            if status:
-                print(f"   Progreso: {int(status.progress() * 100)}%")
-
-        descargados += 1
-        print(f"[OK] Archivo descargado: {file_name}")
-
-        # Mover archivo a PAPELERA_API quitando todos los padres anteriores
         try:
-            # Obtener todos los padres del archivo
+            print(f"[📥] Descargando {file_name}...")
+            request = service.files().get_media(fileId=file_id)
+            fh = io.FileIO(file_path, "wb")
+
+            # ✅ Descarga más rápida con chunks grandes
+            downloader = MediaIoBaseDownload(fh, request, chunksize=1024 * 1024)  # 1 MB por bloque
+            done = False
+            while not done:
+                status, done = downloader.next_chunk()
+                if status:
+                    progreso = int(status.progress() * 100)
+                    print(f"   Progreso: {progreso}%")
+            fh.close()
+
+            descargados += 1
+            print(f"[OK] Archivo descargado: {file_name}")
+
+            # ✅ Mover archivo al Drive/PAPELERA_API
             file_metadata = service.files().get(fileId=file_id, fields="parents").execute()
             padres = ",".join(file_metadata.get("parents", []))
 
-            # Actualizar: mover solo a PAPELERA_API
             service.files().update(
                 fileId=file_id,
                 addParents=FOLDER_ID_PAPELERA,
@@ -86,11 +88,14 @@ def descargar_archivos(service):
             movidos += 1
             print(f"[MOVIDO] Archivo movido a PAPELERA_API: {file_name}")
 
-        except Exception as e:
-            print(f"[ERROR] No se pudo mover {file_name}: {e}")
+            # ✅ Pequeña pausa para evitar límites de la API
+            time.sleep(0.3)
 
-    print(f"\n✅ Todos los archivos ({descargados}) se guardaron en: {carpeta_dia}")
-    print(f"🗑️ Archivos movidos correctamente a PAPELERA_API: {movidos}")
+        except Exception as e:
+            print(f"[ERROR] No se pudo procesar {file_name}: {e}")
+
+    print(f"\n✅ Total de archivos descargados: {descargados}")
+    print(f"🗑️ Total de archivos movidos a PAPELERA_API: {movidos}")
 
     # MENSAJE AUTOMÁTICO FINAL
     print("\n------------------------------------------------------------")
@@ -102,11 +107,9 @@ def descargar_archivos(service):
     print("[TIP]  Cuando desees liberar espacio, entra a Google Drive → PAPELERA_API y elimina definitivamente los archivos.")
     print("------------------------------------------------------------\n")
 
-
 # ============================================================
 # EJECUCIÓN
 # ============================================================
 if __name__ == "__main__":
     service = crear_servicio()
     descargar_archivos(service)
-
