@@ -375,7 +375,7 @@ wb.save(ruta_output)
 print("🎨 Formato condicional aplicado correctamente en la hoja FENIX_ANS.")
 
 # ------------------------------------------------------------
-# 🎨 FORMATO CONDICIONAL PARA COLUMNA 'FORMULARIO_FENIX'
+# 🎨 FORMATO CONDICIONAL PARA COLUMNA 'FORMULARIO_FENIX' + Diagnóstico
 # ------------------------------------------------------------
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import PatternFill, Font
@@ -385,10 +385,26 @@ ultima_fila = ws.max_row
 col_form = "W"  # Columna FORMULARIO_FENIX
 rango_form = f"${col_form}$2:${col_form}${ultima_fila}"
 
+# 🧠 Diagnóstico: revisar valores reales antes de aplicar formato
+valores_validos = ["Ejecutado en Campo", "Pendiente", "En Proceso", "En Ejecución", "Revisión", "SIN DATO"]
+valores_encontrados = set()
+
+for i in range(2, ultima_fila + 1):
+    valor = str(ws[f"{col_form}{i}"].value).strip() if ws[f"{col_form}{i}"].value else ""
+    valores_encontrados.add(valor)
+    if valor and valor not in valores_validos:
+        print(f"⚠️ Valor no reconocido en fila {i}: '{valor}'")
+
+print(f"📊 Valores detectados en FORMULARIO_FENIX: {', '.join(sorted(valores_encontrados))}")
+
+# ------------------------------------------------------------
+# 🎨 Reglas de formato condicional
+# ------------------------------------------------------------
+
 # 🟢 Verde → "Ejecutado en Campo"
 ws.conditional_formatting.add(
     rango_form,
-    FormulaRule(formula=[f'EXACTO(${col_form}2,"Ejecutado en Campo")'],
+    FormulaRule(formula=[f'EXACT(${col_form}2,"Ejecutado en Campo")'],
                 fill=PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid"),
                 font=Font(color="006100"))
 )
@@ -396,7 +412,7 @@ ws.conditional_formatting.add(
 # 🔴 Rojo → "Pendiente" o "En Proceso"
 ws.conditional_formatting.add(
     rango_form,
-    FormulaRule(formula=[f'O(EXACTO(${col_form}2,"Pendiente"),EXACTO(${col_form}2,"En Proceso"))'],
+    FormulaRule(formula=[f'OR(EXACT(${col_form}2,"Pendiente"),EXACT(${col_form}2,"En Proceso"))'],
                 fill=PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid"),
                 font=Font(color="9C0006"))
 )
@@ -404,7 +420,7 @@ ws.conditional_formatting.add(
 # 🟠 Naranja → "En Ejecución" o "Revisión"
 ws.conditional_formatting.add(
     rango_form,
-    FormulaRule(formula=[f'O(EXACTO(${col_form}2,"En Ejecución"),EXACTO(${col_form}2,"Revisión"))'],
+    FormulaRule(formula=[f'OR(EXACT(${col_form}2,"En Ejecución"),EXACT(${col_form}2,"Revisión"))'],
                 fill=PatternFill(start_color="FFD966", end_color="FFD966", fill_type="solid"),
                 font=Font(color="7F6000"))
 )
@@ -412,7 +428,7 @@ ws.conditional_formatting.add(
 # ⚪ Gris claro → "SIN DATO"
 ws.conditional_formatting.add(
     rango_form,
-    FormulaRule(formula=[f'EXACTO(${col_form}2,"SIN DATO")'],
+    FormulaRule(formula=[f'EXACT(${col_form}2,"SIN DATO")'],
                 fill=PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid"),
                 font=Font(color="404040"))
 )
@@ -420,6 +436,7 @@ ws.conditional_formatting.add(
 # 💾 Guardar formato
 wb.save(ruta_output)
 print("🎨 Formato condicional aplicado correctamente en la columna FORMULARIO_FENIX.")
+
 
 # ------------------------------------------------------------
 # 💄 FORMATO VISUAL DE TABLA ESTRUCTURADA

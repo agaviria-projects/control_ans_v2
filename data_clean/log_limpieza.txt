@@ -1,0 +1,14 @@
+
+[2025-10-16 06:40:55]
+Archivo procesado: pendientes_15102025_141847.csv
+Columnas exportadas: PEDIDO, PRODUCTO_ID, TIPO_TRABAJO, TIPO_ELEMENTO_ID, FECHA_RECIBO, FECHA_INICIO_ANS, CLIENTEID, NOMBRE_CLIENTE, TELEFONO_CONTACTO, CELULAR_CONTACTO, DIRECCION, MUNICIPIO, INSTALACION, AREA_TRABAJO, ACTIVIDAD, NOMBRE, TIPO_DIRECCION
+Registros exportados: 866
+Archivo generado en: C:\Users\hector.gaviria\OneDrive - Elite Ingenieros SAS\Escritorio\Control_ANS\data_clean\FENIX_CLEAN.xlsx
+------------------------------------------------------------
+
+[2025-10-16 06:45:24]
+Archivo procesado: pendientes_15102025_141847.csv
+Columnas exportadas: PEDIDO, PRODUCTO_ID, TIPO_TRABAJO, TIPO_ELEMENTO_ID, FECHA_RECIBO, FECHA_INICIO_ANS, CLIENTEID, NOMBRE_CLIENTE, TELEFONO_CONTACTO, CELULAR_CONTACTO, DIRECCION, MUNICIPIO, INSTALACION, AREA_TRABAJO, ACTIVIDAD, NOMBRE, TIPO_DIRECCIÓN
+Registros exportados: 866
+Archivo generado en: C:\Users\hector.gaviria\OneDrive - Elite Ingenieros SAS\Escritorio\Control_ANS\data_clean\FENIX_CLEAN.xlsx
+------------------------------------------------------------
