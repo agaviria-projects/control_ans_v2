@@ -1,7 +1,8 @@
 # ============================================================
-# DESCARGAR Y RENOMBRAR PDF DESDE GOOGLE SHEET - v4.10
+# DESCARGAR Y RENOMBRAR PDF DESDE GOOGLE SHEET - v4.12 FINAL
 # Integración completa: Drive → OneDrive → Google Sheet
 # ============================================================
+
 import os
 import io
 import gspread
@@ -31,7 +32,7 @@ def crear_servicio():
     return build("drive", "v3", credentials=creds)
 
 # ------------------------------------------------------------
-# CONECTAR A GOOGLE SHEET CON GSPREAD (selección exacta de pestaña)
+# CONECTAR A GOOGLE SHEET CON GSPREAD
 # ------------------------------------------------------------
 def conectar_gspread():
     creds = service_account.Credentials.from_service_account_file(
@@ -41,20 +42,17 @@ def conectar_gspread():
     client = gspread.authorize(creds)
     spreadsheet = client.open_by_key(SHEET_ID)
 
-    # Intentar detectar la hoja del formulario por nombre aproximado
     for ws in spreadsheet.worksheets():
         nombre = ws.title.lower().replace(" ", "")
         if "form" in nombre or "respuesta" in nombre:
             print(f"📄 Hoja activa detectada: {ws.title}")
             return ws
 
-    # Si no la encuentra, usar la primera
-    print("⚠️ No se detectó una hoja de respuestas; usando la primera hoja.")
+    print("⚠️ No se detectó hoja de respuestas; usando la primera hoja.")
     return spreadsheet.sheet1
 
-
 # ------------------------------------------------------------
-# LEER GOOGLE SHEET COMO CSV (solo lectura)
+# LEER GOOGLE SHEET COMO CSV
 # ------------------------------------------------------------
 def leer_google_sheet(service):
     try:
@@ -96,24 +94,19 @@ def descargar_pdfs(service, df):
 
     if not all([col_pedido, col_tecnico, col_url]):
         print("❌ No se pudieron identificar las columnas necesarias.")
-        print(f"pedido={col_pedido}, tecnico={col_tecnico}, url={col_url}")
         return
 
-    # ============================================================
-    # Crear carpeta según la fecha del formulario (columna "marca_temporal")
-    # ============================================================
-
-    # Convertir la columna 'marca_temporal' a tipo datetime
+    # Crear carpeta según la fecha del formulario
     df["marca_temporal"] = pd.to_datetime(df["marca_temporal"], errors="coerce", dayfirst=True)
-
-    # Obtener la fecha más reciente (última evidencia cargada)
     fecha_formulario = df["marca_temporal"].max().strftime("%Y-%m-%d")
-
-    # Crear la carpeta basada en esa fecha
     carpeta_dia = os.path.join(RUTA_ONEDRIVE, fecha_formulario)
     os.makedirs(carpeta_dia, exist_ok=True)
-
     print(f"📁 Carpeta destino creada según formulario: {carpeta_dia}")
+
+    # Registro de errores
+    log_errores = os.path.join(carpeta_dia, "log_errores_descarga.txt")
+    errores = 0
+    descargados = 0
 
     for i, fila in df.iterrows():
         pedido = str(fila.get(col_pedido, "")).strip()
@@ -124,14 +117,17 @@ def descargar_pdfs(service, df):
             print(f"⚠️ Fila {i+1} incompleta, se omite.")
             continue
 
-        if "id=" in url:
-            file_id = url.split("id=")[-1]
-        else:
+        if "id=" not in url:
             print(f"⚠️ URL inválida en la fila {i+1}: {url}")
             continue
 
+        file_id = url.split("id=")[-1]
         nombre_archivo = f"{pedido} - {tecnico}.pdf"
         ruta_local = os.path.join(carpeta_dia, nombre_archivo)
+
+        if os.path.exists(ruta_local):
+            print(f"[INFO] Ya existe: {nombre_archivo}, se omite descarga.")
+            continue
 
         try:
             print(f"⬇️ Descargando {nombre_archivo} ...")
@@ -145,12 +141,24 @@ def descargar_pdfs(service, df):
                         progreso = int(status.progress() * 100)
                         print(f"   Progreso: {progreso}%")
             print(f"✅ Guardado en: {ruta_local}\n")
+            descargados += 1
+            time.sleep(0.8)
 
         except Exception as e:
+            errores += 1
             print(f"❌ Error al descargar {nombre_archivo}: {e}")
+            with open(log_errores, "a", encoding="utf-8") as log:
+                log.write(f"{pedido} - {tecnico}: {e}\n")
+
+    print("\n---------------------------------------------")
+    print(f"✅ Descargas completadas: {descargados}")
+    print(f"⚠️ Errores registrados: {errores}")
+    if errores > 0:
+        print(f"📄 Ver log: {log_errores}")
+    print("---------------------------------------------\n")
 
 # ------------------------------------------------------------
-# ACTUALIZAR RUTAS LOCALES EN GOOGLE SHEET - v4.11
+# ACTUALIZAR RUTAS LOCALES EN GOOGLE SHEET
 # ------------------------------------------------------------
 def actualizar_rutas_locales(df):
     print("\n🔄 Iniciando actualización de rutas en Google Sheet...")
@@ -161,7 +169,6 @@ def actualizar_rutas_locales(df):
         print(f"❌ Error conectando a Google Sheet: {e}")
         return
 
-    # Limpiar nombres de columnas en el DataFrame
     df.columns = (
         df.columns.astype(str)
         .str.strip()
@@ -179,11 +186,9 @@ def actualizar_rutas_locales(df):
         print("❌ No se encontraron las columnas de pedido y técnico.")
         return
 
-    # Leer registros actuales del Sheet
     data = sheet.get_all_records()
     encabezados_original = sheet.row_values(1)
 
-    # Detección flexible de columna de evidencia
     col_evidencia_index = None
     for idx, name in enumerate(encabezados_original, start=1):
         name_clean = (
@@ -204,9 +209,6 @@ def actualizar_rutas_locales(df):
         print("Encabezados encontrados:", encabezados_original)
         return
 
-    # --------------------------------------------------------
-    # 🔧 Nueva función interna para normalizar claves
-    # --------------------------------------------------------
     def normalizar_nombre(texto):
         return (
             str(texto)
@@ -225,9 +227,6 @@ def actualizar_rutas_locales(df):
     carpeta_dia = os.path.join(RUTA_ONEDRIVE, fecha_hoy)
     print(f"📋 Registros totales: {len(data)}")
 
-    # --------------------------------------------------------
-    # 🔁 Actualizar rutas locales con coincidencia flexible (v4.12 final)
-    # --------------------------------------------------------
     total_registros = len(data)
     enlaces_actualizados = 0
     enlaces_no_encontrados = 0
@@ -244,40 +243,25 @@ def actualizar_rutas_locales(df):
 
         if os.path.exists(ruta_local):
             celda = rowcol_to_a1(i, col_evidencia_index)
-
-            # ============================================================
-            # 🔗 Convertir ruta local a enlace web OneDrive
-            # ============================================================
-            # Ejemplo:
-            # C:\Users\hector.gaviria\OneDrive - Elite Ingenieros SAS\Evidencias_PDF\2025-10-30\12345678 - Edwin Martinez.pdf
-            # se convierte en:
-            # https://eliteingenierosas-my.sharepoint.com/personal/h_gaviria_eliteingenieros_com_co/Documents/Evidencias_PDF/2025-10-30/12345678 - Edwin Martinez.pdf
-
             ruta_web = ruta_local.replace(
                 r"C:\Users\hector.gaviria\OneDrive - Elite Ingenieros SAS",
                 "https://eliteingenierosas-my.sharepoint.com/personal/h_gaviria_eliteingenieros_com_co/Documents"
             ).replace("\\", "/")
 
-            # ============================================================
-            # 🔗 Insertar hipervínculo clickeable en Google Sheet
-            # ============================================================
             sheet.update_acell(celda, f'=HIPERVINCULO("{ruta_web}"; "Abrir PDF")')
-            time.sleep(1)  # ✅ Pausa breve para que el cambio se refleje
+            time.sleep(1)
             enlaces_actualizados += 1
             print(f"✅ Enlace web actualizado para {nombre_pdf}")
-
         else:
             enlaces_no_encontrados += 1
             print(f"⚠️ No se encontró el PDF: {nombre_pdf}")
-    # --------------------------------------------------------
-    # 🧾 Resumen final del proceso
-    # --------------------------------------------------------
+
     print("\n🎯 Actualización de rutas completada.\n")
     print(f"📊 Total de registros procesados: {total_registros}")
     print(f"✅ Enlaces actualizados correctamente: {enlaces_actualizados}")
     print(f"⚠️ PDFs no encontrados: {enlaces_no_encontrados}")
-    print("\n💡 Tip: Verifica en Google Sheets que los enlaces 'Abrir PDF' sean clickeables y abran desde OneDrive.\n")
-    
+    print("\n💡 Tip: Verifica en Google Sheets que los enlaces 'Abrir PDF' sean clickeables.\n")
+
 # ------------------------------------------------------------
 # PROGRAMA PRINCIPAL
 # ------------------------------------------------------------
