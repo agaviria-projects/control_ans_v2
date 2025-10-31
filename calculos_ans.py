@@ -246,7 +246,68 @@ def verificar_archivo_abierto(ruta):
             )
             print("⛔ Proceso detenido: el archivo está abierto.")
             exit()
+# ------------------------------------------------------------
+# 🔗 CRUCE CON GOOGLE SHEETS – FORMULARIO CONTROL ANS
+# ------------------------------------------------------------
+import gspread
+from google.oauth2.service_account import Credentials
 
+try:
+    # Ruta al archivo de credenciales del proyecto (Service Account)
+    cred_path = base_path / "Control_ANS" / "control-ans-elite-f4ea102db569.json"
+
+    # Definir los permisos de acceso solo lectura
+    scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+    creds = Credentials.from_service_account_file(cred_path, scopes=scopes)
+
+    # Conexión con Google Sheets
+    client = gspread.authorize(creds)
+
+    # ✅ ID real de tu hoja "Formulario Control ANS"
+    SHEET_ID = "1bPLGVVz50k6PlNp382isJrqtW_3IsrrhGW0UUlMf-bM"
+
+    # Abrir la hoja
+    sheet = client.open_by_key(SHEET_ID)
+    # Buscar automáticamente la hoja que contiene "Form" o "Respuesta"
+    sheet_names = [ws.title for ws in sheet.worksheets()]
+    target_name = None
+    for name in sheet_names:
+        if "FORM" in name.upper() or "RESPUESTA" in name.upper():
+            target_name = name
+            break
+
+    if not target_name:
+        raise Exception(f"No se encontró ninguna pestaña válida. Hojas disponibles: {sheet_names}")
+
+    worksheet = sheet.worksheet(target_name)
+    print(f"📄 Hoja detectada automáticamente: {target_name}")
+
+
+    # Leer todos los registros de la hoja activa
+    data = worksheet.get_all_records()
+    df_form = pd.DataFrame(data)
+    df_form.rename(columns=lambda x: str(x).strip().upper(), inplace=True)
+
+    # Normalizar nombres de columnas
+    if "NÚMERO DEL PEDIDO" in df_form.columns:
+        df_form.rename(columns={"NÚMERO DEL PEDIDO": "PEDIDO"}, inplace=True)
+    if "ESTADO DEL PEDIDO" in df_form.columns:
+        df_form.rename(columns={"ESTADO DEL PEDIDO": "FORMULARIO_FENIX"}, inplace=True)
+
+    # Convertir PEDIDO a texto para evitar errores de cruce
+    df["PEDIDO"] = df["PEDIDO"].astype(str)
+    df_form["PEDIDO"] = df_form["PEDIDO"].astype(str)
+
+    # Cruce (tipo LEFT JOIN)
+    df = df.merge(df_form[["PEDIDO", "FORMULARIO_FENIX"]], on="PEDIDO", how="left")
+
+    # Rellenar vacíos
+    df["FORMULARIO_FENIX"] = df["FORMULARIO_FENIX"].fillna("SIN DATO")
+
+    print("🔗 Cruce con formulario en Google Sheets completado correctamente.")
+    print(f"📊 Registros leídos desde formulario: {len(df_form)}")
+except Exception as e:
+    print(f"⚠️ Error durante la conexión o cruce con Google Sheets: {e}")
 # ------------------------------------------------------------
 # EXPORTAR ARCHIVO
 # ------------------------------------------------------------
@@ -313,12 +374,59 @@ ws.conditional_formatting.add(
 wb.save(ruta_output)
 print("🎨 Formato condicional aplicado correctamente en la hoja FENIX_ANS.")
 
-from openpyxl.worksheet.table import Table, TableStyleInfo
-from openpyxl.styles import Alignment
+# ------------------------------------------------------------
+# 🎨 FORMATO CONDICIONAL PARA COLUMNA 'FORMULARIO_FENIX'
+# ------------------------------------------------------------
+from openpyxl.formatting.rule import FormulaRule
+from openpyxl.styles import PatternFill, Font
+
+ws = wb["FENIX_ANS"]
+ultima_fila = ws.max_row
+col_form = "W"  # Columna FORMULARIO_FENIX
+rango_form = f"${col_form}$2:${col_form}${ultima_fila}"
+
+# 🟢 Verde → "Ejecutado en Campo"
+ws.conditional_formatting.add(
+    rango_form,
+    FormulaRule(formula=[f'EXACTO(${col_form}2,"Ejecutado en Campo")'],
+                fill=PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid"),
+                font=Font(color="006100"))
+)
+
+# 🔴 Rojo → "Pendiente" o "En Proceso"
+ws.conditional_formatting.add(
+    rango_form,
+    FormulaRule(formula=[f'O(EXACTO(${col_form}2,"Pendiente"),EXACTO(${col_form}2,"En Proceso"))'],
+                fill=PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid"),
+                font=Font(color="9C0006"))
+)
+
+# 🟠 Naranja → "En Ejecución" o "Revisión"
+ws.conditional_formatting.add(
+    rango_form,
+    FormulaRule(formula=[f'O(EXACTO(${col_form}2,"En Ejecución"),EXACTO(${col_form}2,"Revisión"))'],
+                fill=PatternFill(start_color="FFD966", end_color="FFD966", fill_type="solid"),
+                font=Font(color="7F6000"))
+)
+
+# ⚪ Gris claro → "SIN DATO"
+ws.conditional_formatting.add(
+    rango_form,
+    FormulaRule(formula=[f'EXACTO(${col_form}2,"SIN DATO")'],
+                fill=PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid"),
+                font=Font(color="404040"))
+)
+
+# 💾 Guardar formato
+wb.save(ruta_output)
+print("🎨 Formato condicional aplicado correctamente en la columna FORMULARIO_FENIX.")
 
 # ------------------------------------------------------------
 # 💄 FORMATO VISUAL DE TABLA ESTRUCTURADA
 # ------------------------------------------------------------
+from openpyxl.worksheet.table import Table, TableStyleInfo  
+from openpyxl.styles import Alignment
+
 ws = wb["FENIX_ANS"]
 ultima_fila = ws.max_row
 ultima_col = ws.max_column
@@ -332,7 +440,7 @@ tabla = Table(displayName="FENIX_ANS_TABLA", ref=rango_tabla)
 
 # Estilo sobrio (gris claro sin colores fuertes)
 estilo = TableStyleInfo(
-    name="TableStyleMedium2",  # tono suave
+    name="TableStyleMedium2",  # azul corporativo con filtros
     showFirstColumn=False,
     showLastColumn=False,
     showRowStripes=True,
