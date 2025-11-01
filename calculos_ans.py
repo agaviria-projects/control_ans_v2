@@ -292,17 +292,17 @@ try:
     if "NÚMERO DEL PEDIDO" in df_form.columns:
         df_form.rename(columns={"NÚMERO DEL PEDIDO": "PEDIDO"}, inplace=True)
     if "ESTADO DEL PEDIDO" in df_form.columns:
-        df_form.rename(columns={"ESTADO DEL PEDIDO": "FORMULARIO_FENIX"}, inplace=True)
+        df_form.rename(columns={"ESTADO DEL PEDIDO": "REPORTE_TECNICO"}, inplace=True)
 
     # Convertir PEDIDO a texto para evitar errores de cruce
     df["PEDIDO"] = df["PEDIDO"].astype(str)
     df_form["PEDIDO"] = df_form["PEDIDO"].astype(str)
 
     # Cruce (tipo LEFT JOIN)
-    df = df.merge(df_form[["PEDIDO", "FORMULARIO_FENIX"]], on="PEDIDO", how="left")
+    df = df.merge(df_form[["PEDIDO", "REPORTE_TECNICO"]], on="PEDIDO", how="left")
 
     # Rellenar vacíos
-    df["FORMULARIO_FENIX"] = df["FORMULARIO_FENIX"].fillna("SIN DATO")
+    df["REPORTE_TECNICO"] = df["REPORTE_TECNICO"].fillna("SIN DATO")
 
     print("🔗 Cruce con formulario en Google Sheets completado correctamente.")
     print(f"📊 Registros leídos desde formulario: {len(df_form)}")
@@ -316,7 +316,7 @@ from datetime import datetime
 hoy = datetime.now()
 
 def calcular_estado_fenix(row):
-    form = str(row.get("FORMULARIO_FENIX", "")).strip().upper()
+    form = str(row.get("REPORTE_TECNICO", "")).strip().upper()
     fecha_lim = pd.to_datetime(row.get("FECHA_LIMITE_ANS", ""), errors="coerce")
 
     if pd.isna(fecha_lim):
@@ -340,6 +340,52 @@ def calcular_estado_fenix(row):
 
 df["ESTADO_FENIX"] = df.apply(calcular_estado_fenix, axis=1)
 print("🧭 Columna ESTADO_FENIX generada correctamente.")
+# ------------------------------------------------------------
+# 📦 MOVER PEDIDOS CERRADOS A REPOSITORIO HISTÓRICO (versión v5.4 optimizada)
+# ------------------------------------------------------------
+from openpyxl import load_workbook
+
+ruta_repo = base_path / "Control_ANS" / "data_clean" / "REPOSITORIO_PEDIDOS_CERRADOS.xlsx"
+
+# Filtrar pedidos cerrados (Ejecutado en Campo + CERRADO)
+cerrados = df[
+    (df["REPORTE_TECNICO"].str.upper() == "EJECUTADO EN CAMPO") &
+    (df["ESTADO_FENIX"].str.upper() == "CERRADO")
+].copy()
+
+if not cerrados.empty:
+    print(f"📦 {len(cerrados)} pedidos cerrados serán archivados en REPOSITORIO_PEDIDOS_CERRADOS.xlsx")
+
+    # Uniformizar tipo PEDIDO a texto
+    cerrados["PEDIDO"] = cerrados["PEDIDO"].astype(str).str.strip()
+
+    if ruta_repo.exists():
+        repo = pd.read_excel(ruta_repo)
+
+        # 🔧 Limpieza previa: eliminar columna antigua si aún existe
+        if "FORMULARIO_FENIX" in repo.columns:
+            repo.drop(columns=["FORMULARIO_FENIX"], inplace=True)
+            print("🧹 Columna antigua 'FORMULARIO_FENIX' eliminada del repositorio histórico.")
+
+        # Uniformizar tipo PEDIDO también en el repositorio
+        repo["PEDIDO"] = repo["PEDIDO"].astype(str).str.strip()
+
+        # Concatenar y eliminar duplicados
+        repo = pd.concat([repo, cerrados], ignore_index=True)
+        repo = repo.drop_duplicates(subset=["PEDIDO"], keep="last")
+
+    else:
+        repo = cerrados.copy()
+
+    # Guardar repositorio actualizado
+    repo.to_excel(ruta_repo, index=False)
+
+    # Eliminar los pedidos cerrados del archivo actual (df principal)
+    df = df[~df["PEDIDO"].isin(cerrados["PEDIDO"])]
+
+    print("🗂️ Pedidos cerrados movidos exitosamente al repositorio histórico (sin duplicados y normalizados).")
+else:
+    print("ℹ️ No se encontraron pedidos cerrados para mover.")
 
 # ------------------------------------------------------------
 # EXPORTAR ARCHIVO
@@ -408,14 +454,14 @@ wb.save(ruta_output)
 print("🎨 Formato condicional aplicado correctamente en la hoja FENIX_ANS.")
 
 # ------------------------------------------------------------
-# 🎨 FORMATO CONDICIONAL PARA COLUMNA 'FORMULARIO_FENIX' + Diagnóstico
+# 🎨 FORMATO CONDICIONAL PARA COLUMNA 'REPORTE_TECNICO' + Diagnóstico
 # ------------------------------------------------------------
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import PatternFill, Font
 
 ws = wb["FENIX_ANS"]
 ultima_fila = ws.max_row
-col_form = "W"  # Columna FORMULARIO_FENIX
+col_form = "W"  # Columna REPORTE_TECNICO
 rango_form = f"${col_form}$2:${col_form}${ultima_fila}"
 
 # 🧠 Diagnóstico: revisar valores reales antes de aplicar formato
@@ -428,7 +474,7 @@ for i in range(2, ultima_fila + 1):
     if valor and valor not in valores_validos:
         print(f"⚠️ Valor no reconocido en fila {i}: '{valor}'")
 
-print(f"📊 Valores detectados en FORMULARIO_FENIX: {', '.join(sorted(valores_encontrados))}")
+print(f"📊 Valores detectados en REPORTE_TECNICO: {', '.join(sorted(valores_encontrados))}")
 
 # ------------------------------------------------------------
 # 🎨 Reglas de formato condicional
@@ -468,7 +514,7 @@ ws.conditional_formatting.add(
 
 # 💾 Guardar formato
 wb.save(ruta_output)
-print("🎨 Formato condicional aplicado correctamente en la columna FORMULARIO_FENIX.")
+print("🎨 Formato condicional aplicado correctamente en la columna REPORTE_TECNICO.")
 
 # ------------------------------------------------------------
 # 🎨 FORMATO CONDICIONAL PARA COLUMNA 'ESTADO_FENIX' (versión final corregida)
