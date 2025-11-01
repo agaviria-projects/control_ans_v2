@@ -309,6 +309,39 @@ try:
 except Exception as e:
     print(f"⚠️ Error durante la conexión o cruce con Google Sheets: {e}")
 # ------------------------------------------------------------
+# 🧭 NUEVA COLUMNA: ESTADO_FENIX (semáforo por fecha límite)
+# ------------------------------------------------------------
+from datetime import datetime
+
+hoy = datetime.now()
+
+def calcular_estado_fenix(row):
+    form = str(row.get("FORMULARIO_FENIX", "")).strip().upper()
+    fecha_lim = pd.to_datetime(row.get("FECHA_LIMITE_ANS", ""), errors="coerce")
+
+    if pd.isna(fecha_lim):
+        return "SIN FECHA"
+
+    dias_rest = (fecha_lim.date() - hoy.date()).days
+
+    # CERRADO
+    if form == "EJECUTADO EN CAMPO":
+        return "CERRADO"
+
+    # SEMÁFORO DE ALERTA
+    if dias_rest < 0:
+        return "VENCIDO"
+    elif dias_rest == 0:
+        return "CRÍTICO"
+    elif dias_rest < 2:
+        return "APUNTO DE VENCER"
+    else:
+        return "ABIERTO"
+
+df["ESTADO_FENIX"] = df.apply(calcular_estado_fenix, axis=1)
+print("🧭 Columna ESTADO_FENIX generada correctamente.")
+
+# ------------------------------------------------------------
 # EXPORTAR ARCHIVO
 # ------------------------------------------------------------
 verificar_archivo_abierto(ruta_output)  # 👈 ESTA LÍNEA ES CLAVE
@@ -437,6 +470,59 @@ ws.conditional_formatting.add(
 wb.save(ruta_output)
 print("🎨 Formato condicional aplicado correctamente en la columna FORMULARIO_FENIX.")
 
+# ------------------------------------------------------------
+# 🎨 FORMATO CONDICIONAL PARA COLUMNA 'ESTADO_FENIX' (versión final corregida)
+# ------------------------------------------------------------
+from openpyxl.formatting.rule import FormulaRule
+from openpyxl.styles import PatternFill, Font
+
+ws = wb["FENIX_ANS"]
+ultima_fila = ws.max_row
+col_estado_fenix = "X"
+rango_estado_fenix = f"${col_estado_fenix}$2:${col_estado_fenix}${ultima_fila}"
+
+# 🟩 Verde oscuro → CERRADO
+ws.conditional_formatting.add(
+    rango_estado_fenix,
+    FormulaRule(formula=[f'${col_estado_fenix}2="CERRADO"'],
+                fill=PatternFill(start_color="00B050", end_color="00B050", fill_type="solid"),
+                font=Font(color="FFFFFF"))
+)
+
+# 🟢 Verde claro → ABIERTO (dentro del plazo)
+ws.conditional_formatting.add(
+    rango_estado_fenix,
+    FormulaRule(formula=[f'${col_estado_fenix}2="ABIERTO"'],
+                fill=PatternFill(start_color="92D050", end_color="92D050", fill_type="solid"),
+                font=Font(color="006100"))
+)
+
+# 🟡 Amarillo → APUNTO DE VENCER (<2 días)
+ws.conditional_formatting.add(
+    rango_estado_fenix,
+    FormulaRule(formula=[f'${col_estado_fenix}2="APUNTO DE VENCER"'],
+                fill=PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid"),
+                font=Font(color="7F6000"))
+)
+
+# 🔴 Rojo → CRÍTICO (0 días)
+ws.conditional_formatting.add(
+    rango_estado_fenix,
+    FormulaRule(formula=[f'${col_estado_fenix}2="CRÍTICO"'],
+                fill=PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid"),
+                font=Font(color="FFFFFF"))
+)
+
+# 🟠 Naranja → VENCIDO
+ws.conditional_formatting.add(
+    rango_estado_fenix,
+    FormulaRule(formula=[f'${col_estado_fenix}2="VENCIDO"'],
+                fill=PatternFill(start_color="FFA500", end_color="FFA500", fill_type="solid"),
+                font=Font(color="FFFFFF"))
+)
+
+wb.save(ruta_output)
+print("🎨 Formato condicional aplicado correctamente en la columna ESTADO_FENIX (reconocido en Excel en español).")
 
 # ------------------------------------------------------------
 # 💄 FORMATO VISUAL DE TABLA ESTRUCTURADA
