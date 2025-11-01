@@ -1,6 +1,6 @@
-# =============================
+# ==============================
 # DEPENDENCIAS PRINCIPALES DEL SISTEMA CONTROL ANS v2
-# =============================
+# ==============================
 
 # --- Procesamiento y análisis de datos ---
 pandas==2.3.3
@@ -21,7 +21,9 @@ tk==0.1.0
 gspread==6.1.0
 google-auth==2.35.0
 google-auth-oauthlib==1.2.1
+google-api-python-client==2.149.0
 
 # --- Utilidades ---
 six==1.17.0
+
 
