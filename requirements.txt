@@ -15,15 +15,19 @@ et_xmlfile==2.0.0
 pillow==12.0.0
 
 # --- Interfaz gráfica ---
-tk==0.1.0
+# Tkinter viene incluido con Python, pero se documenta como referencia.
+# No se instala vía pip.
+# tk==0.1.0  ← (comentado)
 
 # --- Conexión con Google Sheets y Drive ---
 gspread==6.1.0
 google-auth==2.35.0
 google-auth-oauthlib==1.2.1
 google-api-python-client==2.149.0
+google-auth-httplib2==0.2.0
 
 # --- Utilidades ---
 six==1.17.0
+requests==2.32.3
 
 
