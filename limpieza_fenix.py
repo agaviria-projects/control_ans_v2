@@ -186,4 +186,3 @@ print("✅ Archivo limpio, con 'SIN DATOS' y resumen generado exitosamente.")
 print(f"📁 Archivo: {ruta_clean}")
 print(f"🧮 Registros: {len(df)}")
 print(f"📝 Log: {ruta_log}")
-

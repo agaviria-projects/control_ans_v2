@@ -23,7 +23,7 @@ from pathlib import Path
 #CAMBIAR LA LINEA 26 POR ESTA 24
 #CRED_PATH = r"C:\Users\hector.gaviria\Desktop\Control_ANS\control-ans-elite-f4ea102db569.json"
 
-CRED_PATH = r"C:\Users\Acer\Desktop\Control_ANS\control-ans-elite-f4ea102db569.json"
+CRED_PATH = r"C:\Users\hector.gaviria\Desktop\Control_ANS\control-ans-elite-f4ea102db569.json"
 SHEET_ID = "1bPLGVVz50k6PlNp382isJrqtW_3IsrrhGW0UUlMf-bM"
 
 # ------------------------------------------------------------

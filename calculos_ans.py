@@ -309,14 +309,16 @@ try:
 except Exception as e:
     print(f"⚠️ Error durante la conexión o cruce con Google Sheets: {e}")
 # ------------------------------------------------------------
-# 🧭 NUEVA COLUMNA: ESTADO_FENIX (semáforo por fecha límite)
+# 🧭 NUEVA COLUMNA: ESTADO_FENIX (según cruce FENIX + formulario)
 # ------------------------------------------------------------
 from datetime import datetime
+import pandas as pd
 
 hoy = datetime.now()
 
 def calcular_estado_fenix(row):
     form = str(row.get("REPORTE_TECNICO", "")).strip().upper()
+    estado_fenix_origen = str(row.get("ESTADO_FENIX_ORIGEN", "")).strip().upper()
     fecha_lim = pd.to_datetime(row.get("FECHA_LIMITE_ANS", ""), errors="coerce")
 
     if pd.isna(fecha_lim):
@@ -324,11 +326,15 @@ def calcular_estado_fenix(row):
 
     dias_rest = (fecha_lim.date() - hoy.date()).days
 
-    # CERRADO
-    if form == "EJECUTADO EN CAMPO":
+    # ✅ CERRADO solo si el técnico ejecutó en campo y FENIX lo confirma cerrado
+    if form == "EJECUTADO EN CAMPO" and estado_fenix_origen == "CERRADO":
         return "CERRADO"
 
-    # SEMÁFORO DE ALERTA
+    # 🟡 Si el técnico ejecutó pero FENIX aún no está cerrado
+    if form == "EJECUTADO EN CAMPO" and estado_fenix_origen != "CERRADO":
+        return "PENDIENTE VALIDACIÓN"
+
+    # 🔴 Semáforo ANS (según fecha límite)
     if dias_rest < 0:
         return "VENCIDO"
     elif dias_rest == 0:
@@ -339,7 +345,8 @@ def calcular_estado_fenix(row):
         return "ABIERTO"
 
 df["ESTADO_FENIX"] = df.apply(calcular_estado_fenix, axis=1)
-print("🧭 Columna ESTADO_FENIX generada correctamente.")
+print("🧭 Columna ESTADO_FENIX generada correctamente con validación cruzada.")
+
 # ------------------------------------------------------------
 # 📦 MOVER PEDIDOS CERRADOS A REPOSITORIO HISTÓRICO (versión v5.4 optimizada)
 # ------------------------------------------------------------
@@ -730,5 +737,3 @@ ws_meta["B3"] = "pendientes_FENIX.csv"
 
 wb.save(ruta_output)
 print("🧾 Hoja META_INFO agregada con fecha y hora del procesamiento.")
-
-
