@@ -298,11 +298,22 @@ try:
     df["PEDIDO"] = df["PEDIDO"].astype(str)
     df_form["PEDIDO"] = df_form["PEDIDO"].astype(str)
 
-    # Cruce (tipo LEFT JOIN)
-    df = df.merge(df_form[["PEDIDO", "REPORTE_TECNICO"]], on="PEDIDO", how="left")
+    # Cruce (tipo LEFT JOIN) incluyendo también el nombre del técnico
+    columnas_form = ["PEDIDO", "REPORTE_TECNICO"]
+
+    # Agregar la columna de técnico si existe
+    if "NOMBRE DEL TÉCNICO" in df_form.columns:
+        df_form.rename(columns={"NOMBRE DEL TÉCNICO": "TECNICO_EJECUTA"}, inplace=True)
+        columnas_form.append("TECNICO_EJECUTA")
+
+    # Merge principal
+    df = df.merge(df_form[columnas_form], on="PEDIDO", how="left")
 
     # Rellenar vacíos
     df["REPORTE_TECNICO"] = df["REPORTE_TECNICO"].fillna("SIN DATO")
+    if "TECNICO_EJECUTA" in df.columns:
+        df["TECNICO_EJECUTA"] = df["TECNICO_EJECUTA"].fillna("SIN DATO")
+
 
     print("🔗 Cruce con formulario en Google Sheets completado correctamente.")
     print(f"📊 Registros leídos desde formulario: {len(df_form)}")
