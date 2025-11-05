@@ -738,5 +738,3 @@ wb.close()
 print("✅ CRUCE FINALIZADO CON ÉXITO (v3.7 con colores de encabezado).")
 print(f"📁 Archivo generado: {ruta_salida}")
 print("------------------------------------------------------------")
-
-	

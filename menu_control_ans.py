@@ -10,7 +10,7 @@ import os
 import subprocess
 import threading
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+from tkinter import ttk, scrolledtext, messagebox as mbox
 from PIL import Image, ImageTk
 import sys
 import io
@@ -29,6 +29,7 @@ if sys.stderr.encoding is None or sys.stderr.encoding.lower() != "utf-8":
 # ------------------------------------------------------------
 RUTA_LOGO = r"data_raw/elite.png"
 RUTA_SCRIPT_ANS = r"calculos_ans.py"
+RUTA_SCRIPT_LIMPIEZA = r"limpieza_fenix.py"
 
 # ------------------------------------------------------------
 # FUNCIONES DE INTERFAZ
@@ -116,13 +117,94 @@ def ejecutar_comando(nombre, comando, boton=None):
 
     threading.Thread(target=tarea, daemon=True).start()
 
-
 # ------------------------------------------------------------
-# COMANDO DE BOTÓN INFORME
+# COMANDO DE BOTÓN INFORME – SECUENCIA COMPLETA SEGURA Y FUNCIONAL
 # ------------------------------------------------------------
 def ejecutar_informe():
-    comando = f'python -X utf8 "{RUTA_SCRIPT_ANS}"'
-    ejecutar_comando("Cálculo Informe ANS", comando, btn_informe)
+    """Ejecuta limpieza_fenix.py y luego calculos_ans.py en secuencia, usando el mismo Python activo."""
+    def tarea():
+        try:
+            log_text.insert(tk.END, "\n🚀 Iniciando proceso completo Informe ANS...\n", "info")
+            log_text.see(tk.END)
+            ventana.update_idletasks()
+
+            color_original = resaltar_boton(btn_informe)
+            barra_progreso.config(mode="indeterminate")
+            barra_progreso.start(20)
+
+            # ✅ Detectar Python actual (entorno activo)
+            python_exe = sys.executable
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+
+            log_text.insert(tk.END, f"🔍 Python detectado: {python_exe}\n", "info")
+            log_text.insert(tk.END, f"📂 Directorio base: {base_dir}\n\n", "info")
+
+            # 1️⃣ Ejecutar limpieza_fenix.py
+            log_text.insert(tk.END, "📂 Ejecutando limpieza de FENIX...\n", "info")
+            proceso1 = subprocess.Popen(
+                [python_exe, "-X", "utf8", os.path.join(base_dir, RUTA_SCRIPT_LIMPIEZA)],
+                cwd=base_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="ignore"
+            )
+            for linea in iter(proceso1.stdout.readline, ''):
+                log_text.insert(tk.END, linea)
+                log_text.see(tk.END)
+                ventana.update_idletasks()
+            proceso1.wait()
+
+            if proceso1.returncode != 0:
+                log_text.insert(tk.END, "\n❌ Error en limpieza FENIX.\n", "error")
+                pie_estado.config(text="⚠️ Error en limpieza FENIX", fg="#C0392B")
+                return
+
+            log_text.insert(tk.END, "✅ Limpieza completada correctamente.\n\n", "success")
+
+            # 2️⃣ Ejecutar calculos_ans.py
+            log_text.insert(tk.END, "📊 Ejecutando cálculos ANS...\n", "info")
+            proceso2 = subprocess.Popen(
+                [python_exe, "-X", "utf8", os.path.join(base_dir, RUTA_SCRIPT_ANS)],
+                cwd=base_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="ignore"
+            )
+            for linea in iter(proceso2.stdout.readline, ''):
+                log_text.insert(tk.END, linea)
+                log_text.see(tk.END)
+                ventana.update_idletasks()
+            proceso2.wait()
+
+            if proceso2.returncode == 0:
+                log_text.insert(tk.END, "\n✅ Informe ANS generado correctamente.\n", "success")
+                pie_estado.config(text="✅ Informe ANS actualizado correctamente.", fg="#27AE60")
+                
+                # 🟢 Nuevo popup de confirmación visual
+                mbox.showinfo("Control ANS – ELITE Ingenieros S.A.S.",
+                              "✅ El Informe ANS ha sido actualizado correctamente.\n\n"
+                              "El archivo FENIX_ANS.xlsx está listo para revisión.")
+            else:
+                log_text.insert(tk.END, "\n❌ Error en cálculos ANS.\n", "error")
+                pie_estado.config(text="⚠️ Error en cálculos ANS", fg="#C0392B")
+
+        except Exception as e:
+            log_text.insert(tk.END, f"\n⚠️ Error inesperado: {e}\n", "error")
+            pie_estado.config(text="⚠️ Error inesperado", fg="#C0392B")
+
+        finally:
+            barra_progreso.stop()
+            barra_progreso.config(mode="determinate", value=100)
+            restaurar_boton(btn_informe, color_original)
+            log_text.insert(tk.END, "-" * 60 + "\n", "separador")
+            pie_estado.config(text="⚙️ Esperando acción del usuario...", fg="#1B263B")
+            ventana.after(1500, lambda: barra_progreso.config(value=0))
+
+    threading.Thread(target=tarea, daemon=True).start()
 
 # ------------------------------------------------------------
 # INTERFAZ PRINCIPAL

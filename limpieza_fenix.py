@@ -38,16 +38,21 @@ ruta_raw = archivos_csv[0]
 print(f"📂 Archivo detectado automáticamente: {ruta_raw.name}")
 
 # ------------------------------------------------------------
-# CARGA DE DATOS
+# CARGA DE DATOS – Lectura segura del CSV con control de errores
 # ------------------------------------------------------------
-df = pd.read_csv(
-    ruta_raw,
-    encoding='latin-1',
-    sep=',',
-    quotechar='"',
-    on_bad_lines='skip',
-    engine='python'
-)
+try:
+    print(f"🔍 Intentando leer archivo CSV: {ruta_raw}")
+    
+    # Abrir manualmente con manejo de errores a nivel del sistema
+    with open(ruta_raw, "r", encoding="latin-1", errors="ignore") as f:
+        df = pd.read_csv(f, sep=",", dtype=str, quotechar='"', on_bad_lines="skip", engine="python")
+
+    print(f"✅ Archivo leído correctamente con codificación: latin-1")
+    print(f"📊 Registros cargados: {len(df)}")
+
+except Exception as e:
+    print(f"❌ Error al leer el archivo CSV: {e}")
+    sys.exit(1)
 
 # ------------------------------------------------------------
 # LIMPIEZA BÁSICA
