@@ -22,6 +22,12 @@ from openpyxl.styles import PatternFill
 from openpyxl.formatting.rule import FormulaRule
 
 # ------------------------------------------------------------
+# ⚙️ CONFIGURACIÓN GLOBAL DE ADVERTENCIAS
+# ------------------------------------------------------------
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+
+# ------------------------------------------------------------
 # CONFIGURACIÓN DE RUTAS
 # ------------------------------------------------------------
 base_path = Path(__file__).resolve().parent.parent
@@ -99,6 +105,8 @@ for col in columnas_clave:
     else:
         df[col] = df[col].apply(lambda x: np.nan if str(x).strip() == "" or str(x).upper() in ["NAN", "NONE", "NULL"] else x)
 
+# Nota: la advertencia "Parsing dates..." es solo informativa y no afecta el flujo.
+# Se mantiene 'dayfirst=True' para compatibilidad con formatos DD/MM/YYYY y YYYY/MM/DD.
 df["FECHA_INICIO_ANS"] = pd.to_datetime(df["FECHA_INICIO_ANS"], errors="coerce", dayfirst=True)
 
 # ------------------------------------------------------------
@@ -247,7 +255,7 @@ def verificar_archivo_abierto(ruta):
             print("⛔ Proceso detenido: el archivo está abierto.")
             exit()
 # ------------------------------------------------------------
-# 🔗 CRUCE CON GOOGLE SHEETS – FORMULARIO CONTROL ANS
+# 🔗 CRUCE CON GOOGLE SHEETS – FORMULARIO CONTROL ANS (versión protegida)
 # ------------------------------------------------------------
 import gspread
 from google.oauth2.service_account import Credentials
@@ -282,43 +290,48 @@ try:
     worksheet = sheet.worksheet(target_name)
     print(f"📄 Hoja detectada automáticamente: {target_name}")
 
-
     # Leer todos los registros de la hoja activa
     data = worksheet.get_all_records()
-    df_form = pd.DataFrame(data)
-    df_form.rename(columns=lambda x: str(x).strip().upper(), inplace=True)
 
-    # Normalizar nombres de columnas
-    if "NÚMERO DEL PEDIDO" in df_form.columns:
-        df_form.rename(columns={"NÚMERO DEL PEDIDO": "PEDIDO"}, inplace=True)
-    if "ESTADO DEL PEDIDO" in df_form.columns:
-        df_form.rename(columns={"ESTADO DEL PEDIDO": "REPORTE_TECNICO"}, inplace=True)
+    # ✅ Protección: si el formulario está vacío, no hacer merge
+    if not data:
+        print("⚠️ Formulario vacío: no hay datos para cruzar. Se omite el merge con Google Sheets.")
+        df["REPORTE_TECNICO"] = "SIN DATO"
+        df["TECNICO_EJECUTA"] = "SIN DATO"
+    else:
+        # Crear DataFrame con los datos del formulario
+        df_form = pd.DataFrame(data)
+        df_form.rename(columns=lambda x: str(x).strip().upper(), inplace=True)
 
-    # Convertir PEDIDO a texto para evitar errores de cruce
-    df["PEDIDO"] = df["PEDIDO"].astype(str)
-    df_form["PEDIDO"] = df_form["PEDIDO"].astype(str)
+        # Normalizar nombres de columnas
+        if "NÚMERO DEL PEDIDO" in df_form.columns:
+            df_form.rename(columns={"NÚMERO DEL PEDIDO": "PEDIDO"}, inplace=True)
+        if "ESTADO DEL PEDIDO" in df_form.columns:
+            df_form.rename(columns={"ESTADO DEL PEDIDO": "REPORTE_TECNICO"}, inplace=True)
+        if "NOMBRE DEL TÉCNICO" in df_form.columns:
+            df_form.rename(columns={"NOMBRE DEL TÉCNICO": "TECNICO_EJECUTA"}, inplace=True)
 
-    # Cruce (tipo LEFT JOIN) incluyendo también el nombre del técnico
-    columnas_form = ["PEDIDO", "REPORTE_TECNICO"]
+        # Convertir PEDIDO a texto para evitar errores de cruce
+        df["PEDIDO"] = df["PEDIDO"].astype(str)
+        df_form["PEDIDO"] = df_form["PEDIDO"].astype(str)
 
-    # Agregar la columna de técnico si existe
-    if "NOMBRE DEL TÉCNICO" in df_form.columns:
-        df_form.rename(columns={"NOMBRE DEL TÉCNICO": "TECNICO_EJECUTA"}, inplace=True)
-        columnas_form.append("TECNICO_EJECUTA")
+        # Definir columnas disponibles para el merge
+        columnas_form = [c for c in ["PEDIDO", "REPORTE_TECNICO", "TECNICO_EJECUTA"] if c in df_form.columns]
 
-    # Merge principal
-    df = df.merge(df_form[columnas_form], on="PEDIDO", how="left")
+        # Merge principal (LEFT JOIN)
+        df = df.merge(df_form[columnas_form], on="PEDIDO", how="left")
 
-    # Rellenar vacíos
-    df["REPORTE_TECNICO"] = df["REPORTE_TECNICO"].fillna("SIN DATO")
-    if "TECNICO_EJECUTA" in df.columns:
-        df["TECNICO_EJECUTA"] = df["TECNICO_EJECUTA"].fillna("SIN DATO")
+        # Rellenar vacíos
+        df["REPORTE_TECNICO"] = df["REPORTE_TECNICO"].fillna("SIN DATO")
+        if "TECNICO_EJECUTA" in df.columns:
+            df["TECNICO_EJECUTA"] = df["TECNICO_EJECUTA"].fillna("SIN DATO")
 
+        print("🔗 Cruce con formulario en Google Sheets completado correctamente.")
+        print(f"📊 Registros leídos desde formulario: {len(df_form)}")
 
-    print("🔗 Cruce con formulario en Google Sheets completado correctamente.")
-    print(f"📊 Registros leídos desde formulario: {len(df_form)}")
 except Exception as e:
     print(f"⚠️ Error durante la conexión o cruce con Google Sheets: {e}")
+
 # ------------------------------------------------------------
 # 🧭 NUEVA COLUMNA: ESTADO_FENIX (según cruce FENIX + formulario)
 # ------------------------------------------------------------
