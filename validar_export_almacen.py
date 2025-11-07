@@ -9,6 +9,9 @@ from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
+
 # ============================================================
 # 2. CONFIGURACIÓN DE RUTAS
 # ============================================================
@@ -32,6 +35,7 @@ ruta_salida = base / "data_clean" / "CONTROL_ALMACEN.xlsx"
 
 print("------------------------------------------------------------")
 print("🚀 INICIANDO CRUCE FÉNIX vs ELITE (v3.2)...")
+inicio = time.time()  
 print("------------------------------------------------------------")
 
 # ============================================================
@@ -45,16 +49,18 @@ columnas_fenix = [
     "item_res", "cantidad", "vlr_cliente", "valor_costo"
 ]
 
-# --- FÉNIX ---
+# --- FÉNIX --- (lectura optimizada)
 try:
     if ruta_fenix.suffix.lower() == ".txt":
-        try:
-            # Intento 1: lectura estándar UTF-8
-            df_fenix = pd.read_csv(ruta_fenix, sep=None, engine="python", dtype=str, encoding="utf-8")
-        except UnicodeDecodeError:
-            # Intento 2: lectura alternativa en Latin-1 (Windows)
-            df_fenix = pd.read_csv(ruta_fenix, sep=None, engine="python", dtype=str, encoding="latin-1")
-            print("⚙️ Archivo leído correctamente con codificación Latin-1.")
+        # ✅ Lectura directa con separador definido (mucho más rápida)
+        df_fenix = pd.read_csv(
+            ruta_fenix,
+            sep="|",             # delimitador correcto
+            dtype=str,
+            encoding="latin-1",  # compatible con tildes
+            low_memory=False
+        )
+        print("⚙️ Archivo Fénix leído con separador '|' y codificación Latin-1 (modo rápido).")
     else:
         df_fenix = pd.read_excel(ruta_fenix, dtype=str)
 
@@ -68,87 +74,79 @@ try:
 except Exception as e:
     raise SystemExit(f"❌ Error al leer FÉNIX: {e}")
 
-# --- ELITE ---
+# --- ELITE --- (lectura optimizada)
 try:
-    print("🔎 Buscando hoja con encabezado 'CANTIDAD' y limpiando filas previas...")
+    print("🔎 Leyendo Planilla Consumos (modo rápido, una sola vez)...")
 
-    temp = pd.read_excel(ruta_elite, sheet_name=None, dtype=str, header=None)
-    hoja_correcta, fila_header = None, None
+    xls = pd.ExcelFile(ruta_elite)
 
-    hojas_excluir = ["pasos", "resumen", "hoja1", "macro", "configuracion"]
-
-    for hoja, df_temp in temp.items():
-        if hoja.lower() in hojas_excluir:
-            continue
-
-        # Buscar fila con la palabra 'cantidad' (encabezado real)
-        for i, fila in df_temp.iterrows():
-            fila_texto = " ".join(str(x).lower() for x in fila.values if pd.notna(x))
-            if "cantidad" in fila_texto:
-                hoja_correcta, fila_header = hoja, i
-                break
-        if hoja_correcta:
+    # ✅ Detección automática de la hoja correcta
+    hoja_correcta = None
+    for hoja in xls.sheet_names:
+        df_preview = pd.read_excel(xls, sheet_name=hoja, nrows=10, dtype=str)
+        encabezados = " ".join(df_preview.columns.str.lower())
+        if "pedido" in encabezados or "cantidad" in encabezados:
+            hoja_correcta = hoja
             break
 
     if hoja_correcta is None:
-        raise Exception("No se encontró ninguna hoja con encabezado 'CANTIDAD'.")
+        hoja_correcta = "Hoja2"
 
-    print(f"📍 Hoja detectada: {hoja_correcta} | Encabezado en fila {fila_header + 1}")
+    # ✅ Buscar fila de encabezado real (ej. donde aparece 'pedido' o 'cantidad')
+    df_preview = pd.read_excel(xls, sheet_name=hoja_correcta, nrows=15, header=None, dtype=str)
+    fila_header = None
+    for i, fila in df_preview.iterrows():
+        fila_texto = " ".join(str(x).lower() for x in fila.values if pd.notna(x))
+        if "pedido" in fila_texto and "cantidad" in fila_texto:
+            fila_header = i
+            break
 
-    # 🔹 Leer solo desde el encabezado hacia abajo (evita filas vacías previas)
+    if fila_header is None:
+        raise Exception("No se encontró encabezado con 'pedido' o 'cantidad'.")
+
+    # ✅ Leer desde la fila detectada (fila 5 en tu archivo)
     df_elite = pd.read_excel(
-        ruta_elite,
+        xls,
         sheet_name=hoja_correcta,
         dtype=str,
-        skiprows=fila_header  # <-- lee desde esa fila hacia abajo
+        skiprows=fila_header
     )
 
-    # 🔹 Limpiar encabezados
+    print(f"📍 Hoja detectada: {hoja_correcta}")
+    print(f"📍 Encabezado detectado en fila: {fila_header + 1}")
+
+    # 🔹 Normalizar encabezados
     df_elite.columns = (
-        df_elite.columns
-        .map(str)
+        df_elite.columns.map(str)
         .str.lower()
         .str.strip()
         .str.replace(r"unnamed.*", "", regex=True)
     )
 
-    # 🔹 Quitar columnas completamente vacías
-    df_elite = df_elite.dropna(axis=1, how="all")
+    print(f"📋 Encabezados finales: {list(df_elite.columns)}")
 
-    # 🔹 Conservar columnas relevantes
-    posibles_cols = ["#pedido", "pedido", "codigo", "cantidad", "descripción", "descripcion", "unidad", "tecnico"]
-    df_elite = df_elite[[c for c in df_elite.columns if any(p in c for p in posibles_cols)]]
+    # 🔹 Renombrar columnas relevantes
+    for col in df_elite.columns:
+        if "pedido" in col:
+            df_elite.rename(columns={col: "pedido"}, inplace=True)
+        elif "codigo" in col:
+            df_elite.rename(columns={col: "codigo"}, inplace=True)
+        elif "cantidad" in col:
+            df_elite.rename(columns={col: "cantidad_elite"}, inplace=True)
 
-    # 🔹 Renombrar columnas estándar
-    df_elite.rename(columns={
-        "#pedido": "pedido",
-        "codigo": "codigo",
-        "cantidad": "cantidad_elite"
-    }, inplace=True)
+    # 🔹 Mantener solo columnas necesarias
+    columnas_necesarias = ["pedido", "codigo", "cantidad_elite"]
+    df_elite = df_elite[[c for c in columnas_necesarias if c in df_elite.columns]]
 
-    # 🔹 Filtrar filas vacías o corruptas (pedidos falsos)
+    # 🔹 Limpieza y conversión
     df_elite["pedido"] = df_elite["pedido"].astype(str).str.strip()
-    df_elite = df_elite[
-        df_elite["pedido"].notna() &
-        df_elite["pedido"].str.match(r"^\d{8,}$", na=False)
-    ]
-
-    # 🔹 Limpiar códigos válidos (6 dígitos)
-    df_elite = df_elite[df_elite["codigo"].astype(str).str.match(r"^\d{6}$", na=False)]
-
-    # 🔹 Convertir cantidades a número
+    df_elite = df_elite[df_elite["pedido"].str.match(r"^\d{8,}$", na=False)]
     df_elite["cantidad_elite"] = pd.to_numeric(df_elite["cantidad_elite"], errors="coerce").fillna(0)
 
-    # 🔹 Agregar columna mano_obra si no existe
-    if "mano_obra" not in df_elite.columns:
-        df_elite["mano_obra"] = None
-
-    print(f"✅ Planilla Consumos lista para cruce: {len(df_elite)} registros limpios.")
+    print(f"✅ Planilla Consumos lista: {len(df_elite)} registros limpios.")
 
 except Exception as e:
     raise SystemExit(f"❌ Error al leer Planilla Consumos: {e}")
-
-
 
 print("✅ Archivos cargados correctamente.")
 time.sleep(0.5)
@@ -632,13 +630,6 @@ for col in cols_numericas_nc:
             .astype(float)
         )
 
-with pd.ExcelWriter(ruta_salida, engine="openpyxl") as writer:
-    df_merge.to_excel(writer, index=False, sheet_name="CONTROL_ALMACEN")
-    resumen.to_excel(writer, index=False, sheet_name="RESUMEN")
-    df_nocruce.to_excel(writer, index=False, sheet_name="NO_COINCIDEN")
-
-print("💾 Exportando archivo con hoja de control de pendientes...")
-
 # Asegurar que las columnas numéricas estén en formato numérico real
 for col in ["cantidad", "cantidad_elite", "vlr_cliente", "valor_costo", "diferencia"]:
     if col in df_merge.columns:
@@ -652,7 +643,9 @@ wb = load_workbook(ruta_salida)
 def formato_hoja(ws):
     from openpyxl.styles import PatternFill, Font, Alignment
 
-    max_row, max_col = ws.max_row, ws.max_column
+    # Limitar formato solo a las primeras 2000 filas para acelerar el pintado
+    max_row = min(ws.max_row, 2000)
+    max_col = ws.max_column
 
     font_encabezado = Font(color="FFFFFF", bold=True)
     align_center = Alignment(horizontal="center", vertical="center")
@@ -738,3 +731,4 @@ wb.close()
 print("✅ CRUCE FINALIZADO CON ÉXITO (v3.7 con colores de encabezado).")
 print(f"📁 Archivo generado: {ruta_salida}")
 print("------------------------------------------------------------")
+print(f"⏱️ Tiempo total de ejecución: {round(time.time() - inicio, 2)} segundos.")
