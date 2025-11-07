@@ -5,14 +5,7 @@ LIMPIEZA BASE FÉNIX – Proyecto Control_ANS_FENIX
 Autor: Héctor + IA (2025)
 ------------------------------------------------------------
 Descripción:
-- Detecta automáticamente el CSV más reciente.
-- Normaliza nombres de columnas.
-- Mantiene las columnas clave, creando las faltantes vacías.
-- Rellena celdas vacías con 'SIN DATOS'.
-- Filtra actividades válidas.
-- Limpia comillas y espacios.
-- Exporta a Excel con tabla estructurada + hoja de resumen.
-- Registra log de columnas y registros procesados.
+- Implementa función convertir_fecha_segura() para manejar formatos DD/MM/YYYY y YYYY/MM/DD.
 ------------------------------------------------------------
 """
 
