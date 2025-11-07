@@ -8,6 +8,10 @@ Autor: Héctor A. Gaviria + IA (2025)
 
 import os
 import subprocess
+import signal
+
+proceso_activo = None  # Guarda el proceso en ejecución
+
 import threading
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox as mbox
@@ -68,7 +72,8 @@ def ejecutar_comando(nombre, comando, boton=None):
             barra_progreso.config(mode="indeterminate")
             barra_progreso.start(20)
 
-            proceso = subprocess.Popen(
+            global proceso_activo
+            proceso_activo = subprocess.Popen(
                 comando,
                 shell=True,
                 stdout=subprocess.PIPE,
@@ -79,27 +84,26 @@ def ejecutar_comando(nombre, comando, boton=None):
                 encoding="utf-8"
             )
 
-            for linea in iter(proceso.stdout.readline, ''):
+            for linea in iter(proceso_activo.stdout.readline, ''):
                 if not linea:
                     break
                 log_text.insert(tk.END, linea)
                 log_text.see(tk.END)
                 ventana.update_idletasks()
 
-            proceso.wait()
+            proceso_activo.wait()
 
             barra_progreso.stop()
             barra_progreso.config(mode="determinate")
 
-            if proceso.returncode == 0:
+            if proceso_activo.returncode == 0:
                 barra_progreso["value"] = 100
                 ventana.update_idletasks()
                 log_text.insert(tk.END, f"\n✅ {nombre} completado con éxito.\n", "success")
                 pie_estado.config(text=f"✅ {nombre} completado con éxito. | {hora}", fg="#27AE60")
             else:
-                log_text.insert(tk.END, f"\n❌ Error en {nombre} (código {proceso.returncode}).\n", "error")
+                log_text.insert(tk.END, f"\n❌ Error en {nombre} (código {proceso_activo.returncode}).\n", "error")
                 pie_estado.config(text=f"⚠️ Error en {nombre}. Revisa el log.", fg="#C0392B")
-
         except Exception as e:
             barra_progreso.stop()
             barra_progreso.config(mode="determinate", value=100)
@@ -205,7 +209,26 @@ def ejecutar_informe():
             ventana.after(1500, lambda: barra_progreso.config(value=0))
 
     threading.Thread(target=tarea, daemon=True).start()
+def detener_ejecucion():
+    """Detiene la ejecución en curso sin cerrar el panel."""
+    global proceso_activo
 
+    try:
+        if proceso_activo and proceso_activo.poll() is None:
+            # 🔸 Deshabilitar botón mientras se detiene
+            btn_detener.config(state="disabled")
+            os.kill(proceso_activo.pid, signal.SIGTERM)
+            log_text.insert(tk.END, "⏹️ Ejecución detenida manualmente por el usuario.\n", "error")
+            log_text.see(tk.END)
+            pie_estado.config(text="⏹️ Ejecución detenida manualmente.", fg="#C0392B")
+            # 🔹 Reactivar botón después de 2 segundos
+            ventana.after(2000, lambda: btn_detener.config(state="normal"))
+        else:
+            mbox.showinfo("Control ANS", "No hay ningún proceso en ejecución actualmente.")
+    except Exception as e:
+        mbox.showerror("Error", f"No se pudo detener el proceso:\n{e}")
+        # 🔹 Asegura que el botón se reactive aunque haya error
+        ventana.after(2000, lambda: btn_detener.config(state="normal"))
 # ------------------------------------------------------------
 # INTERFAZ PRINCIPAL
 # ------------------------------------------------------------
@@ -353,11 +376,28 @@ log_text.tag_config("separador", foreground="#95A5A6")
 # ------------------------------------------------------------
 frame_salida = tk.Frame(ventana, bg="#EAEDED")
 frame_salida.pack(pady=(0, 10))
-btn_salir = tk.Button(frame_salida, text="SALIR DEL PANEL", command=ventana.quit,
-                      width=25, height=2, bg="#1E8449", fg="white",
-                      font=("Segoe UI", 10, "bold"), relief="ridge", borderwidth=3, cursor="hand2",
-                      activebackground="#C0392B", activeforeground="white")
-btn_salir.pack(pady=3)
+
+# Botón SALIR
+btn_salir = tk.Button(
+    frame_salida, text="SALIR DEL PANEL", command=ventana.quit,
+    width=25, height=2, bg="#1E8449", fg="white",
+    font=("Segoe UI", 10, "bold"), relief="ridge", borderwidth=3,
+    cursor="hand2", activebackground="#C0392B", activeforeground="white"
+)
+btn_salir.grid(row=0, column=0, padx=15, pady=3)
+
+# Botón PAUSAR EJECUCIÓN
+btn_detener = tk.Button(
+    frame_salida, text="⏸️ PAUSAR EJECUCIÓN", command=detener_ejecucion,
+    width=25, height=2, bg="#F39C12", fg="black",
+    font=("Segoe UI", 10, "bold"), relief="ridge", borderwidth=3,
+    cursor="hand2", activebackground="#E67E22", activeforeground="white"
+)
+btn_detener.grid(row=0, column=1, padx=15, pady=3)
+
+# Centrar ambos botones en la ventana
+frame_salida.columnconfigure(0, weight=1)
+frame_salida.columnconfigure(1, weight=1)
 
 # ------------------------------------------------------------
 # PIE DE PÁGINA

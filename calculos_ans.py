@@ -105,9 +105,26 @@ for col in columnas_clave:
     else:
         df[col] = df[col].apply(lambda x: np.nan if str(x).strip() == "" or str(x).upper() in ["NAN", "NONE", "NULL"] else x)
 
-# Nota: la advertencia "Parsing dates..." es solo informativa y no afecta el flujo.
-# Se mantiene 'dayfirst=True' para compatibilidad con formatos DD/MM/YYYY y YYYY/MM/DD.
-df["FECHA_INICIO_ANS"] = pd.to_datetime(df["FECHA_INICIO_ANS"], errors="coerce", dayfirst=True)
+# ✅ v5.8 – Corrección definitiva de lectura de fechas (ISO o Latino)
+# Acepta formatos ISO (2025-11-06) y latino (6/11/2025), sin borrar fechas válidas
+def parsear_fecha_fenix(valor):
+    if pd.isna(valor) or not str(valor).strip():
+        return pd.NaT
+
+    texto = str(valor).strip()
+    try:
+        # 1️⃣ Intentar formato ISO exacto (generado por limpieza_fenix.py)
+        return pd.to_datetime(texto, format="%Y-%m-%d %H:%M:%S", errors="raise")
+    except Exception:
+        try:
+            # 2️⃣ Si falla (por ejemplo "6/11/2025 13:32"), probar formato latino
+            return pd.to_datetime(texto, dayfirst=True, errors="raise")
+        except Exception:
+            # 3️⃣ Si no se puede leer, devolver NaT sin romper el flujo
+            return pd.NaT
+
+# Aplicar función de conversión a la columna
+df["FECHA_INICIO_ANS"] = df["FECHA_INICIO_ANS"].apply(parsear_fecha_fenix)
 
 # ------------------------------------------------------------
 # DÍAS PACTADOS
