@@ -60,7 +60,7 @@ try:
             encoding="latin-1",  # compatible con tildes
             low_memory=False
         )
-        print("⚙️ Archivo Fénix leído con separador '|' y codificación Latin-1 (modo rápido).")
+        print("⚙️ Archivo Fénix leído con separador '|' y codificación Latin-1")
     else:
         df_fenix = pd.read_excel(ruta_fenix, dtype=str)
 
@@ -76,7 +76,7 @@ except Exception as e:
 
 # --- ELITE --- (lectura optimizada)
 try:
-    print("🔎 Leyendo Planilla Consumos (modo rápido, una sola vez)...")
+    print("🔎 Leyendo Planilla Consumos")
 
     xls = pd.ExcelFile(ruta_elite)
 
