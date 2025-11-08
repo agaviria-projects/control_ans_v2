@@ -5,7 +5,7 @@ LIMPIEZA BASE FÉNIX – Proyecto Control_ANS_FENIX
 Autor: Héctor + IA (2025)
 ------------------------------------------------------------
 Descripción:
-- Implementa función convertir_fecha_segura() para manejar formatos DD/MM/YYYY y YYYY/MM/DD.
+- Implementa función convertir_fecha_segura() para manejar formatos DD/MM/YYYY y YYYY/MM/DD
 ------------------------------------------------------------
 """
 
